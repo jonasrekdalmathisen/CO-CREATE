@@ -54,6 +54,7 @@ Data import and packages utilised.
 
 ### Packages
 ```{r Packages}
+options(tidyverse.quiet = TRUE)
 library(tidyverse, eurostat)
 ```
 
@@ -63,17 +64,90 @@ library(tidyverse, eurostat)
 
 policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
 
+colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics")
+
 head(policydb)
 
 countries <- distinct(policydb, Country)
 ```
 
-The `policies` data consists of `r nrow(policies)` policy actions. These actions are located in `r nrow(countries)` different countries. The number of policies identified in each country is listed below:
+The `policies` data consists of `r nrow(policydb)` policy actions. 
+
+#### Policy actions per country
+
+These actions are located in `r nrow(countries)` different countries. The number of policies identified in each country is listed below:
 
 <!-- sum of policies, grouped by country -->
+```{r}
+PA_countries <- policydb %>% count(Country, sort=TRUE, name = "Number of policy actions")
+
+PA_countries
+```
+
+
+#### A hiearchical overview: Country -> Policy Area -> Sub- Policy area
+
+```{r}
+
+
+country_hierch <- policydb %>% count(Country, PolicyArea, SubPArea)
+
+country_hierch
+```
+
+
+
+#### Policy hierarchy
+
+```{r}
+#filter(Country=="Norway") Lage en funksjon som tester alle land opp mot hverandre og hiearkiene? Hvor er man like etc?
+
+PA_hierch <- policydb %>% count(PolicyArea, SubPArea, sort=TRUE, name = "Number of policy actions")
+
+PA_hierch
+```
+
+#### Policy areas
+
+```{r}
+PA_dimensions <- policydb %>% count(PolicyArea, sort=TRUE, name = "Number of policy actions") %>% 
+PA_dimensions
+```
+
+### Sub-policy areas
+
+```{r}
+PA_SPA <- policydb %>% count(PolicyArea, SubPArea, sort=TRUE, name = "Number of policy actions")
+
+PA_SPA
+
+```
 
 
 ## Methods
+
+### if blank
+
+
+<!-- if blank FALSE, else TRUE, på en unik liste -->
+
+### Make empty index
+```{r}
+PAreas <- policydb %>% distinct(PolicyArea) #List of PAreas
+
+vector_PAr <- c(t(PAreas)) #Make into character strings and list
+
+GI_blank <- countries
+
+GI_blank[ , c(vector_PAr)] <- NA
+
+GI_blank
+
+```
+
+### Fill table with true or false
+
+
 
 There will be four main steps outlined here.
 1. Vectorisation and operationalisation of the framework for R compatibility. 
