@@ -54,22 +54,55 @@ Data import and packages utilised.
 
 ### Packages
 ```{r Packages}
+library(tidyverse, eurostat, COINr, countrycode)
+
 options(tidyverse.quiet = TRUE)
-library(tidyverse, eurostat)
+
 ```
 
 ### Data source
 
 ```{r Data}
-
+#WCRF policy database
 policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
 
-colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics")
+colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics", "BenchmarkID", "PolicyAreaID")
+
+policydb <- policydb[-c(1,6)]
 
 head(policydb)
-
+                                
 countries <- distinct(policydb, Country)
+
+##Blank dataframe with PolicyArena and SubPolicyArena
+cleanFrame <- policydb %>% select("PolicyArea", "SubPArea") %>% distinct_all()
+cleanFrame
+
+###Vectorisation
+
+#Policy Areas 
+# PAreas <- policydb %>% select("PolicyAreaID") %>% distinct(PolicyAreaID)
+
+PAreas <- policydb %>% distinct(PolicyArea) #List of PAreas
+
+vector_PAr <- as.list(PArea) #Make into character strings and list
+vector_PAr
+
+short_v_PAr <- c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G")
+
+KEY_PAletter <- cbind(vector_PAr, short_v_PAr)
+KEY_PAletter <- as.data.frame(KEY_PAletter)
+colnames(KEY_PAletter) <- c("PolicyArea", "PA_short")
+KEY_PAletter
+
+#Sub-policy areas
+SubPas <- policydb %>% distinct(SubPArea, BenchmarkID)
+vector_SubPas <- c(t(SubPas$BenchmarkID))
+
+SubPas
+#as.list kunne funket
 ```
+
 
 The `policies` data consists of `r nrow(policydb)` policy actions. 
 
@@ -90,7 +123,13 @@ PA_countries
 ```{r}
 
 
-country_hierch <- policydb %>% count(Country, PolicyArea, SubPArea)
+country_hierch <- policydb %>% count(Country, PolicyArea, SubPArea) #Text
+
+####OR
+
+country_hierch2 <- policydb %>% count(Country, PolicyAreaID, BenchmarkID) #IDs
+
+
 
 country_hierch
 ```
@@ -110,7 +149,7 @@ PA_hierch
 #### Policy areas
 
 ```{r}
-PA_dimensions <- policydb %>% count(PolicyArea, sort=TRUE, name = "Number of policy actions") %>% 
+PA_dimensions <- policydb %>% count(PolicyArea, sort=TRUE, name = "Number of policy actions")
 PA_dimensions
 ```
 
@@ -126,7 +165,7 @@ PA_SPA
 
 ## Methods
 
-### if blank
+
 
 
 <!-- if blank FALSE, else TRUE, på en unik liste -->
@@ -135,19 +174,147 @@ PA_SPA
 ```{r}
 PAreas <- policydb %>% distinct(PolicyArea) #List of PAreas
 
+
+
 vector_PAr <- c(t(PAreas)) #Make into character strings and list
+
+short_v_PAr <- c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G")
+
+countrylist <- c(t(countries))
 
 GI_blank <- countries
 
-GI_blank[ , c(vector_PAr)] <- NA
+GI_blank[ , c(short_v_PAr)] <- NA #eller short_V_PAr
 
 GI_blank
 
 ```
 
 ### Fill table with true or false
+```{r Country policy area level}
+country_hierch
+
+#Country > PArea > SubPA > Count
+
+truef <- country_hierch %>% mutate(
+  PolicyActionImplemented = if_else(n > 0, TRUE, FALSE, missing=FALSE)
+)
+
+PA_level_TF <- truef %>%
+  select("Country", "PolicyArea","PolicyActionImplemented") %>% 
+  right_join(KEY_PAletter, "PolicyArea") %>%
+  select(c("Country", "PA_short")) %>% distinct() %>%
+  pivot_wider(names_from = "PA_short", values_from = "PA_short") %>% 
+  mutate(
+    across(c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G"), 
+           ~if_else(!is.na(.), 1, 0)
+           )
+    )
+                                                          
+PA_level_TF
+
+#Add new column to DF with raw score
+
+PA_level_TF_calc <- PA_level_TF %>% mutate(rawScore = rowSums(across(c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G"))))
+
+#Add new column with normalised score
+
+PA_level_TF_calc <- PA_level_TF_calc %>% mutate(TotalScore = rawScore/length(short_v_PAr)*100)
+```
+
+The above shows the score for the overall policy areas and would be the simplest form of overview. This can be further nuanced by utilising data on subpolicy area level:
+
+```{r 2 Country by sub policy}
+country_hierch2
+
+#Country > PArea > SubPA > Count
+
+truef_spa <- country_hierch2 %>% mutate(
+  PolicyActionImplemented = if_else(n > 0, TRUE, FALSE, missing=FALSE)
+)
+
+SPA_level_TF <- truef_spa %>%
+  select("Country", "BenchmarkID","PolicyActionImplemented") %>% 
+  select(c("Country", "BenchmarkID")) %>% distinct() %>%
+  pivot_wider(names_from = "BenchmarkID", values_from = "BenchmarkID") %>%
+  ungroup() %>%
+  mutate(
+    across(.cols = -Country, 
+           ~if_else(!is.na(.), 1, 0)
+    )
+  )
 
 
+#Add new column to DF with raw score
+
+PA_level_TF_calc <- PA_level_TF %>% mutate(rawScore = rowSums(across(c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G"))))
+
+#Add new column with normalised score
+
+PA_level_TF_calc <- PA_level_TF_calc %>% mutate(TotalScore = rawScore/length(short_v_PAr)*100)
+```
+
+
+##Results 
+The results are calculated by simply summing the number of YES'es and dividing by number of policy areas (10 for NOURISHING). This is multiplied by 100 to get a nice score between 0-10. 
+
+```{r Results}
+#Plot results
+qplot(PA_level_TF_calc$TotalScore, geom="histogram")
+
+DescStats <- PA_level_TF_calc %>% select("TotalScore") %>% summary()
+StandardDeviation <- sd(PA_level_TF_calc$TotalScore) 
+
+
+summary <- list(DescStats, StandardDeviation)
+
+summary
+```
+
+
+##Correls
+We also want to see how these countries relate. Let's try the pheatmap package:
+
+```{r Pheatmap}
+corellSPA <- SPA_level_TF %>% select(-Country) %>% cor()
+corellPA <- PA_level_TF %>% select(-Country) %>% cor()
+
+corellPA
+
+corellzSPA <- pheatmap(corellSPA)
+corellzPA <- pheatmap(corellPA)
+
+save_pheatmap_pdf <- function(x, filename, width=10, height=7) {
+   stopifnot(!missing(x))
+   stopifnot(!missing(filename))
+   pdf(filename, width=width, height=height)
+   grid::grid.newpage()
+   grid::grid.draw(x$gtable)
+   dev.off()
+}
+
+save_pheatmap_pdf(corellzPA, "test.pdf")
+
+```
+
+
+```{r }
+
+#Liste NOURISHING letter:
+KEY_PAletter
+
+#Liste land
+countrylist 
+
+#Funksjon som sjekker om land har N-letter TRUE, hent så til GI_index (TRUE) else=FALSE.
+GI <- GI_blank
+
+      #N må være en funksjon i liste
+#GI <- N = case_when(country %is%in% countrylist &)
+
+
+
+```
 
 There will be four main steps outlined here.
 1. Vectorisation and operationalisation of the framework for R compatibility. 

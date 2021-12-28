@@ -206,21 +206,79 @@ library(tidyverse, eurostat)</code></pre>
 </div>
 <div id="data-source" class="section level3">
 <h3>Data source</h3>
-<pre class="r"><code>policydb &lt;- read_csv(&quot;C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv&quot;, show_col_types = FALSE)
+<pre class="r"><code>#WCRF policy database
+policydb &lt;- read_csv(&quot;C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv&quot;, show_col_types = FALSE)
 
 colnames(policydb) &lt;- c(&quot;DB_type&quot;, &quot;PolicyArea&quot;, &quot;SubPArea&quot;, &quot;PolicyAction&quot;, &quot;Country&quot;, &quot;Topics&quot;)
 
+policydb &lt;- policydb[-c(1,6)]
+
 head(policydb)</code></pre>
-<pre><code>## # A tibble: 6 x 6
-##   DB_type    PolicyArea         SubPArea     PolicyAction         Country Topics
-##   &lt;chr&gt;      &lt;chr&gt;              &lt;chr&gt;        &lt;chr&gt;                &lt;chr&gt;   &lt;chr&gt; 
-## 1 Nourishing Nutrition label s~ Mandatory n~ &quot;Nutrient content l~ Austra~ Label 
-## 2 Nourishing Nutrition label s~ Mandatory n~ &quot;EU nutrient conten~ Austria Label 
-## 3 Nourishing Nutrition label s~ Mandatory n~ &quot;Nutrient content l~ Bahamas Label 
-## 4 Nourishing Nutrition label s~ Mandatory n~ &quot;EU&amp;nbsp;nutrient c~ Belgium Label 
-## 5 Nourishing Nutrition label s~ Mandatory n~ &quot;EU nutrient conten~ Bulgar~ Label 
-## 6 Nourishing Nutrition label s~ Mandatory n~ &quot;Nutrient content l~ Canada  Label</code></pre>
-<pre class="r"><code>countries &lt;- distinct(policydb, Country)</code></pre>
+<pre><code>## # A tibble: 6 x 4
+##   PolicyArea                 SubPArea         PolicyAction               Country
+##   &lt;chr&gt;                      &lt;chr&gt;            &lt;chr&gt;                      &lt;chr&gt;  
+## 1 Nutrition label standards~ Mandatory nutri~ &quot;Nutrient content lists –~ Austra~
+## 2 Nutrition label standards~ Mandatory nutri~ &quot;EU nutrient contents lis~ Austria
+## 3 Nutrition label standards~ Mandatory nutri~ &quot;Nutrient content lists –~ Bahamas
+## 4 Nutrition label standards~ Mandatory nutri~ &quot;EU&amp;nbsp;nutrient content~ Belgium
+## 5 Nutrition label standards~ Mandatory nutri~ &quot;EU nutrient content list~ Bulgar~
+## 6 Nutrition label standards~ Mandatory nutri~ &quot;Nutrient content lists –~ Canada</code></pre>
+<pre class="r"><code>countries &lt;- distinct(policydb, Country)
+
+##Blank dataframe with PolicyArena and SubPolicyArena
+cleanFrame &lt;- policydb %&gt;% select(&quot;PolicyArea&quot;, &quot;SubPArea&quot;) %&gt;% distinct_all()
+cleanFrame</code></pre>
+<pre><code>## # A tibble: 67 x 2
+##    PolicyArea                              SubPArea                             
+##    &lt;chr&gt;                                   &lt;chr&gt;                                
+##  1 Nutrition label standards and regulati~ &quot;Mandatory nutrient lists on package~
+##  2 Nutrition label standards and regulati~ &quot;Trans fats included in mandatory nu~
+##  3 Nutrition label standards and regulati~ &quot;Clearly visible \&quot;interpretative\&quot; ~
+##  4 Nutrition label standards and regulati~ &quot;On-shelf labelling&quot;                 
+##  5 Nutrition label standards and regulati~ &quot;Calorie and nutrient labelling on m~
+##  6 Nutrition label standards and regulati~ &quot;Warning labels on menus and display~
+##  7 Nutrition label standards and regulati~ &quot;Rules on nutrient claims (ie nutrie~
+##  8 Nutrition label standards and regulati~ &quot;Rules on health claims (ie nutrient~
+##  9 Offer healthy food and set standards i~ &quot;Fruit &amp; vegetable initiatives in sc~
+## 10 Offer healthy food and set standards i~ &quot;Mandatory standards for food availa~
+## # ... with 57 more rows</code></pre>
+<pre class="r"><code>###Vectorisation
+
+#Policy Areas 
+PAreas &lt;- policydb %&gt;% distinct(PolicyArea) #List of PAreas
+
+vector_PAr &lt;- c(t(PAreas)) #Make into character strings and list
+
+short_v_PAr &lt;- c(&quot;N&quot;, &quot;O&quot;, &quot;U&quot;, &quot;R&quot;, &quot;I&quot;, &quot;S&quot;, &quot;H&quot;, &quot;I2&quot;, &quot;N2&quot;, &quot;G&quot;)
+
+KEY_PAletter &lt;- cbind(vector_PAr, short_v_PAr)
+KEY_PAletter &lt;- as.data.frame(KEY_PAletter)
+colnames(KEY_PAletter) &lt;- c(&quot;PolicyArea&quot;, &quot;PA_short&quot;)
+KEY_PAletter</code></pre>
+<pre><code>##                                                                                   PolicyArea
+## 1  Nutrition label standards and regulations on the use of claims and implied claims on food
+## 2    Offer healthy food and set standards in public institutions and other specific settings
+## 3                   Use economic tools to address food affordability and purchase incentives
+## 4                          Restrict food advertising and other forms of commercial promotion
+## 5                                       Improve nutritional quality of the whole food supply
+## 6           Set incentives and rules to create a healthy retail and food service environment
+## 7            Harness supply chain and actions across sectors to ensure coherence with health
+## 8                            Inform people about food and nutrition through public awareness
+## 9                                    Nutrition advice and counselling in healthcare settings
+## 10                                                       Give nutrition education and skills
+##    PA_short
+## 1         N
+## 2         O
+## 3         U
+## 4         R
+## 5         I
+## 6         S
+## 7         H
+## 8        I2
+## 9        N2
+## 10        G</code></pre>
+<pre class="r"><code>#Sub-policy areas
+SubPas &lt;- policydb %&gt;% distinct(SubPArea)</code></pre>
 <p>The <code>policies</code> data consists of 899 policy actions.</p>
 <div id="policy-actions-per-country" class="section level4">
 <h4>Policy actions per country</h4>
@@ -246,30 +304,29 @@ PA_countries</code></pre>
 </div>
 <div id="a-hiearchical-overview-country---policy-area---sub--policy-area" class="section level4">
 <h4>A hiearchical overview: Country -&gt; Policy Area -&gt; Sub- Policy area</h4>
-<pre class="r"><code>x &lt;- policydb %&gt;% 
-  group_by(Country, PolicyArea, SubPArea) %&gt;% 
-  summarise(Counts = n())</code></pre>
-<pre><code>## `summarise()` has grouped output by &#39;Country&#39;, &#39;PolicyArea&#39;. You can override using the `.groups` argument.</code></pre>
-<pre class="r"><code>x</code></pre>
+<pre class="r"><code>country_hierch &lt;- policydb %&gt;% count(Country, PolicyArea, SubPArea)
+
+country_hierch</code></pre>
 <pre><code>## # A tibble: 800 x 4
-## # Groups:   Country, PolicyArea [453]
-##    Country             PolicyArea                 SubPArea                Counts
+##    Country             PolicyArea                 SubPArea                     n
 ##    &lt;chr&gt;               &lt;chr&gt;                      &lt;chr&gt;                    &lt;int&gt;
-##  1 Afghanistan         Inform people about food ~ Development and commun~      1
-##  2 Albania             Inform people about food ~ Development and commun~      1
-##  3 American Samoa      Harness supply chain and ~ Governance structures ~      1
-##  4 Antigua and Barbuda Harness supply chain and ~ Governance structures ~      1
-##  5 Antigua and Barbuda Inform people about food ~ Development and commun~      1
-##  6 Antigua and Barbuda Inform people about food ~ Public awareness, mass~      1
-##  7 Argentina           Improve nutritional quali~ Mandatory limits on le~      1
-##  8 Argentina           Improve nutritional quali~ Mandatory removal of t~      1
-##  9 Argentina           Improve nutritional quali~ Voluntary reformulatio~      1
-## 10 Argentina           Inform people about food ~ Development and commun~      1
+##  1 Afghanistan         Inform people about food ~ Development and communi~     1
+##  2 Albania             Inform people about food ~ Development and communi~     1
+##  3 American Samoa      Harness supply chain and ~ Governance structures f~     1
+##  4 Antigua and Barbuda Harness supply chain and ~ Governance structures f~     1
+##  5 Antigua and Barbuda Inform people about food ~ Development and communi~     1
+##  6 Antigua and Barbuda Inform people about food ~ Public awareness, mass ~     1
+##  7 Argentina           Improve nutritional quali~ Mandatory limits on lev~     1
+##  8 Argentina           Improve nutritional quali~ Mandatory removal of tr~     1
+##  9 Argentina           Improve nutritional quali~ Voluntary reformulation~     1
+## 10 Argentina           Inform people about food ~ Development and communi~     1
 ## # ... with 790 more rows</code></pre>
 </div>
 <div id="policy-hierarchy" class="section level4">
 <h4>Policy hierarchy</h4>
-<pre class="r"><code>PA_hierch &lt;- policydb %&gt;% count(PolicyArea, SubPArea, sort=TRUE, name = &quot;Number of policy actions&quot;)
+<pre class="r"><code>#filter(Country==&quot;Norway&quot;) Lage en funksjon som tester alle land opp mot hverandre og hiearkiene? Hvor er man like etc?
+
+PA_hierch &lt;- policydb %&gt;% count(PolicyArea, SubPArea, sort=TRUE, name = &quot;Number of policy actions&quot;)
 
 PA_hierch</code></pre>
 <pre><code>## # A tibble: 67 x 3
@@ -289,8 +346,7 @@ PA_hierch</code></pre>
 </div>
 <div id="policy-areas" class="section level4">
 <h4>Policy areas</h4>
-<pre class="r"><code>PA_dimensions &lt;- policydb %&gt;% count(PolicyArea, sort=TRUE, name = &quot;Number of policy actions&quot;)
-
+<pre class="r"><code>PA_dimensions &lt;- policydb %&gt;% count(PolicyArea, sort=TRUE, name = &quot;Number of policy actions&quot;) 
 PA_dimensions</code></pre>
 <pre><code>## # A tibble: 10 x 2
 ##    PolicyArea                                             `Number of policy act~
@@ -330,7 +386,220 @@ PA_SPA</code></pre>
 </div>
 <div id="methods" class="section level2">
 <h2>Methods</h2>
+<!-- if blank FALSE, else TRUE, på en unik liste -->
+<div id="make-empty-index" class="section level3">
+<h3>Make empty index</h3>
+<pre class="r"><code>PAreas &lt;- policydb %&gt;% distinct(PolicyArea) #List of PAreas
+
+
+
+vector_PAr &lt;- c(t(PAreas)) #Make into character strings and list
+
+short_v_PAr &lt;- c(&quot;N&quot;, &quot;O&quot;, &quot;U&quot;, &quot;R&quot;, &quot;I&quot;, &quot;S&quot;, &quot;H&quot;, &quot;I2&quot;, &quot;N2&quot;, &quot;G&quot;)
+
+countrylist &lt;- c(t(countries))
+
+GI_blank &lt;- countries
+
+GI_blank[ , c(short_v_PAr)] &lt;- NA #eller short_V_PAr
+
+GI_blank</code></pre>
+<pre><code>## # A tibble: 137 x 11
+##    Country    N     O     U     R     I     S     H     I2    N2    G    
+##    &lt;chr&gt;      &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt; &lt;lgl&gt;
+##  1 Australia  NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  2 Austria    NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  3 Bahamas    NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  4 Belgium    NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  5 Bulgaria   NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  6 Canada     NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  7 Chile      NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  8 China      NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+##  9 Colombia   NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+## 10 Costa Rica NA    NA    NA    NA    NA    NA    NA    NA    NA    NA   
+## # ... with 127 more rows</code></pre>
+</div>
+<div id="fill-table-with-true-or-false" class="section level3">
+<h3>Fill table with true or false</h3>
+<pre class="r"><code>country_hierch</code></pre>
+<pre><code>## # A tibble: 800 x 4
+##    Country             PolicyArea                 SubPArea                     n
+##    &lt;chr&gt;               &lt;chr&gt;                      &lt;chr&gt;                    &lt;int&gt;
+##  1 Afghanistan         Inform people about food ~ Development and communi~     1
+##  2 Albania             Inform people about food ~ Development and communi~     1
+##  3 American Samoa      Harness supply chain and ~ Governance structures f~     1
+##  4 Antigua and Barbuda Harness supply chain and ~ Governance structures f~     1
+##  5 Antigua and Barbuda Inform people about food ~ Development and communi~     1
+##  6 Antigua and Barbuda Inform people about food ~ Public awareness, mass ~     1
+##  7 Argentina           Improve nutritional quali~ Mandatory limits on lev~     1
+##  8 Argentina           Improve nutritional quali~ Mandatory removal of tr~     1
+##  9 Argentina           Improve nutritional quali~ Voluntary reformulation~     1
+## 10 Argentina           Inform people about food ~ Development and communi~     1
+## # ... with 790 more rows</code></pre>
+<pre class="r"><code>#Country &gt; PArea &gt; SubPA &gt; Count
+
+truef &lt;- country_hierch %&gt;% mutate(
+  PolicyActionImplemented = if_else(n &gt; 0, TRUE, FALSE, missing=FALSE)
+)
+
+PA_level_TF &lt;- truef %&gt;%
+  select(&quot;Country&quot;, &quot;PolicyArea&quot;,&quot;PolicyActionImplemented&quot;) %&gt;% 
+  right_join(KEY_PAletter, &quot;PolicyArea&quot;) %&gt;%
+  select(c(&quot;Country&quot;, &quot;PA_short&quot;)) %&gt;% distinct() %&gt;%
+  pivot_wider(names_from = &quot;PA_short&quot;, values_from = &quot;PA_short&quot;) %&gt;% 
+  mutate(
+    across(c(&quot;N&quot;, &quot;O&quot;, &quot;U&quot;, &quot;R&quot;, &quot;I&quot;, &quot;S&quot;, &quot;H&quot;, &quot;I2&quot;, &quot;N2&quot;, &quot;G&quot;), 
+           ~if_else(!is.na(.), 1, 0)
+           )
+    )
+                                                          
+PA_level_TF</code></pre>
+<pre><code>## # A tibble: 137 x 11
+##    Country              I2     H     I     N     G     O     R     S     U    N2
+##    &lt;chr&gt;             &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+##  1 Afghanistan           1     0     0     0     0     0     0     0     0     0
+##  2 Albania               1     0     0     0     0     0     0     0     0     0
+##  3 American Samoa        0     1     0     0     0     0     0     0     0     0
+##  4 Antigua and Barb~     1     1     0     0     0     0     0     0     0     0
+##  5 Argentina             1     0     1     1     0     0     0     0     0     0
+##  6 Australia             1     0     1     1     1     1     1     0     0     0
+##  7 Austria               1     0     1     1     1     1     0     0     0     0
+##  8 Bahamas               1     1     0     1     0     0     0     0     0     0
+##  9 Bahrain               0     0     0     1     0     1     0     1     1     0
+## 10 Bangladesh            1     0     0     0     0     0     0     0     0     0
+## # ... with 127 more rows</code></pre>
+<pre class="r"><code>#Add new column to DF with raw score
+
+PA_level_TF_calc &lt;- PA_level_TF %&gt;% mutate(rawScore = rowSums(across(c(&quot;N&quot;, &quot;O&quot;, &quot;U&quot;, &quot;R&quot;, &quot;I&quot;, &quot;S&quot;, &quot;H&quot;, &quot;I2&quot;, &quot;N2&quot;, &quot;G&quot;))))
+
+#Add new column with normalised score
+
+PA_level_TF_calc &lt;- PA_level_TF_calc %&gt;% mutate(TotalScore = rawScore/length(short_v_PAr)*100)</code></pre>
+<p>##Results The results are calculated by simply summing the number of YES’es and dividing by number of policy areas (10 for NOURISHING). This is multiplied by 100 to get a nice score between 0-10.</p>
+<pre class="r"><code>#Plot results
+qplot(PA_level_TF_calc$TotalScore, geom=&quot;histogram&quot;)</code></pre>
+<pre><code>## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.</code></pre>
+<p><img src="data:image/png;base64,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" width="672" /></p>
+<pre class="r"><code>DescStats &lt;- PA_level_TF_calc %&gt;% select(&quot;TotalScore&quot;) %&gt;% summary()
+StandardDeviation &lt;- sd(PA_level_TF_calc$TotalScore) 
+
+
+summary &lt;- list(DescStats, StandardDeviation)
+
+summary</code></pre>
+<pre><code>## [[1]]
+##    TotalScore    
+##  Min.   : 10.00  
+##  1st Qu.: 10.00  
+##  Median : 20.00  
+##  Mean   : 33.07  
+##  3rd Qu.: 50.00  
+##  Max.   :100.00  
+## 
+## [[2]]
+## [1] 25.74085</code></pre>
+<pre class="r"><code>#Liste NOURISHING letter:
+KEY_PAletter</code></pre>
+<pre><code>##                                                                                   PolicyArea
+## 1  Nutrition label standards and regulations on the use of claims and implied claims on food
+## 2    Offer healthy food and set standards in public institutions and other specific settings
+## 3                   Use economic tools to address food affordability and purchase incentives
+## 4                          Restrict food advertising and other forms of commercial promotion
+## 5                                       Improve nutritional quality of the whole food supply
+## 6           Set incentives and rules to create a healthy retail and food service environment
+## 7            Harness supply chain and actions across sectors to ensure coherence with health
+## 8                            Inform people about food and nutrition through public awareness
+## 9                                    Nutrition advice and counselling in healthcare settings
+## 10                                                       Give nutrition education and skills
+##    PA_short
+## 1         N
+## 2         O
+## 3         U
+## 4         R
+## 5         I
+## 6         S
+## 7         H
+## 8        I2
+## 9        N2
+## 10        G</code></pre>
+<pre class="r"><code>#Liste land
+countrylist </code></pre>
+<pre><code>##   [1] &quot;Australia&quot;                     &quot;Austria&quot;                      
+##   [3] &quot;Bahamas&quot;                       &quot;Belgium&quot;                      
+##   [5] &quot;Bulgaria&quot;                      &quot;Canada&quot;                       
+##   [7] &quot;Chile&quot;                         &quot;China&quot;                        
+##   [9] &quot;Colombia&quot;                      &quot;Costa Rica&quot;                   
+##  [11] &quot;Croatia&quot;                       &quot;Cyprus&quot;                       
+##  [13] &quot;Czech Republic&quot;                &quot;Denmark&quot;                      
+##  [15] &quot;Ecuador&quot;                       &quot;El Salvador&quot;                  
+##  [17] &quot;Estonia&quot;                       &quot;Finland&quot;                      
+##  [19] &quot;France&quot;                        &quot;Germany&quot;                      
+##  [21] &quot;Greece&quot;                        &quot;Guatemala&quot;                    
+##  [23] &quot;Gulf Cooperation Council&quot;      &quot;Honduras&quot;                     
+##  [25] &quot;Hong Kong&quot;                     &quot;Hungary&quot;                      
+##  [27] &quot;Iceland&quot;                       &quot;India&quot;                        
+##  [29] &quot;Indonesia&quot;                     &quot;Ireland&quot;                      
+##  [31] &quot;Israel&quot;                        &quot;Italy&quot;                        
+##  [33] &quot;Japan&quot;                         &quot;Latvia&quot;                       
+##  [35] &quot;Liechtenstein&quot;                 &quot;Lithuania&quot;                    
+##  [37] &quot;Luxembourg&quot;                    &quot;Malaysia&quot;                     
+##  [39] &quot;Malta&quot;                         &quot;Mexico&quot;                       
+##  [41] &quot;Netherlands&quot;                   &quot;New Zealand&quot;                  
+##  [43] &quot;Nicaragua&quot;                     &quot;Norway&quot;                       
+##  [45] &quot;Paraguay&quot;                      &quot;Philippines&quot;                  
+##  [47] &quot;Poland&quot;                        &quot;Portugal&quot;                     
+##  [49] &quot;Romania&quot;                       &quot;Russia&quot;                       
+##  [51] &quot;Slovakia&quot;                      &quot;Slovenia&quot;                     
+##  [53] &quot;South Korea&quot;                   &quot;Spain&quot;                        
+##  [55] &quot;Sweden&quot;                        &quot;Switzerland&quot;                  
+##  [57] &quot;Taiwan&quot;                        &quot;Thailand&quot;                     
+##  [59] &quot;UK&quot;                            &quot;USA&quot;                          
+##  [61] &quot;Uruguay&quot;                       &quot;Venezuela&quot;                    
+##  [63] &quot;Argentina&quot;                     &quot;Brunei&quot;                       
+##  [65] &quot;Iran&quot;                          &quot;Nigeria&quot;                      
+##  [67] &quot;Peru&quot;                          &quot;Singapore&quot;                    
+##  [69] &quot;Sri Lanka&quot;                     &quot;UAE&quot;                          
+##  [71] &quot;Fiji&quot;                          &quot;Solomon Islands&quot;              
+##  [73] &quot;Bahrain&quot;                       &quot;Brazil&quot;                       
+##  [75] &quot;South Africa&quot;                  &quot;Bermuda&quot;                      
+##  [77] &quot;Jordan&quot;                        &quot;Kuwait&quot;                       
+##  [79] &quot;Macedonia&quot;                     &quot;Mauritius&quot;                    
+##  [81] &quot;Trinidad and Tobago&quot;           &quot;Vanuatu&quot;                      
+##  [83] &quot;Guam&quot;                          &quot;Barbados&quot;                     
+##  [85] &quot;Dominica&quot;                      &quot;Ethiopia&quot;                     
+##  [87] &quot;French Polynesia&quot;              &quot;Kiribati&quot;                     
+##  [89] &quot;Morocco&quot;                       &quot;Samoa&quot;                        
+##  [91] &quot;Saudi Arabia&quot;                  &quot;Seychelles&quot;                   
+##  [93] &quot;St Helena&quot;                     &quot;St Vincent and the Grenadines&quot;
+##  [95] &quot;Tonga&quot;                         &quot;Cook Islands&quot;                 
+##  [97] &quot;Micronesia&quot;                    &quot;Nauru&quot;                        
+##  [99] &quot;Palau&quot;                         &quot;Turkey&quot;                       
+## [101] &quot;Romania, Wallis and Futuna&quot;    NA                             
+## [103] &quot;Ghana&quot;                         &quot;Zimbabwe&quot;                     
+## [105] &quot;American Samoa&quot;                &quot;Antigua and Barbuda&quot;          
+## [107] &quot;Belize&quot;                        &quot;British Virgin Islands&quot;       
+## [109] &quot;Grenada&quot;                       &quot;Marshall Islands&quot;             
+## [111] &quot;New Caledonia&quot;                 &quot;Tanzania&quot;                     
+## [113] &quot;Afghanistan&quot;                   &quot;Albania&quot;                      
+## [115] &quot;Bangladesh&quot;                    &quot;Benin&quot;                        
+## [117] &quot;Bosnia and Herzegovina&quot;        &quot;Cambodia&quot;                     
+## [119] &quot;Cuba&quot;                          &quot;Dominican Republic&quot;           
+## [121] &quot;Georgia&quot;                       &quot;Guyana&quot;                       
+## [123] &quot;Jamaica&quot;                       &quot;Kenya&quot;                        
+## [125] &quot;Lebanon&quot;                       &quot;Mongolia&quot;                     
+## [127] &quot;Namibia&quot;                       &quot;Nepal&quot;                        
+## [129] &quot;Oman&quot;                          &quot;Panama&quot;                       
+## [131] &quot;Qatar&quot;                         &quot;Sierra Leone&quot;                 
+## [133] &quot;St Kitts and Nevis&quot;            &quot;Vietnam&quot;                      
+## [135] &quot;St Lucia&quot;                      &quot;Bhutan&quot;                       
+## [137] &quot;Uganda&quot;</code></pre>
+<pre class="r"><code>#Funksjon som sjekker om land har N-letter TRUE, hent så til GI_index (TRUE) else=FALSE.
+GI &lt;- GI_blank
+
+      #N må være en funksjon i liste
+#GI &lt;- N = case_when(country %is%in% countrylist &amp;)</code></pre>
 <p>There will be four main steps outlined here. 1. Vectorisation and operationalisation of the framework for R compatibility. 2. Loops and grouping of countries to check for policy implementation status 3. Create an implementation score for each policy area and country, followed by aggregation 4. Visualising the results using tables and maps. 5. Exploratory analyses</p>
+</div>
 <div id="vectorisation" class="section level3">
 <h3>Vectorisation</h3>
 <p>lvl1 &lt;- “NOURISHING” lvl2 &lt;- c(“Food environment”, “Food system”, “Behaviour change communication”) lvl3 &lt;- c(&quot;&quot;)</p>

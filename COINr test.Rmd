@@ -1,0 +1,100 @@
+---
+title: "COINr Trail"
+author: "Jonas Rekdal Mathisen"
+date: "28/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this version, I try to aggregate and play with the policy data to make an index. To do this, I use the COINr package.
+
+```{r Packages}
+library(countrycode, COINr, tidyverse)
+
+```
+
+#Initialisation
+https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
+
+## Input data
+### Original benchmark
+### SubPA test
+COINr_SPA <- SPA_level_TF
+
+<!-- #Translate to COINr language -->
+
+
+
+```{r}
+
+## Indicator data 
+COINr_SPA <- SPA_level_TF
+
+names(COINr_SPA)[names(COINr_SPA) == "Country"] <- "UnitName"
+
+
+COINr_SPA <- COINr_SPA %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
+
+#Some values are missing: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna
+
+Missing <- COINr_SPA %>% subset(is.na(UnitCode)) %>% select(UnitName, UnitCode) %>% Missing.omit()
+Missing
+
+
+#For this exercise these are dropped
+COINr_SPA <- na.omit(COINr_SPA)
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+COINr_SPA <- COINr_SPA %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+#Consider adding certain variables etc for further analysis (eurostat stuff)
+
+
+IndData <- Coinr_SPA
+
+
+```
+
+
+## Indicator metadata
+<!-- Required: IndName, IndCode and Direction -->
+
+```{r Metadata}
+IndMeta <- AggHiearchy
+
+colnames(IndMeta) <- c("PolicyArea", "IndName", "IndCode", "Agg_PolicyDimension")
+IndMeta$Direction <- 1 #All indicators got positive direction
+IndMeta$IndWeight <- 1 #All indicators carry the same weight
+
+
+#IndMeta$Agg1_Indicators <- IndMeta$IndCode ##Avventer denne. Blir dobbel uans? 
+
+
+#IndMeta$Agg_PolicyDimension #Samles til en av de tre hovedkategoriene
+
+
+#IndMeta$Agg_PolicyIndex #Alt samles
+
+IndMeta$Agg_PolicyIndex <- "NOURISHING" 
+
+IndMeta
+``` 
+## Aggregation metadata
+AggMeta <- IndMeta %>% select(PolicyArea, Agg_PolicyDimension)
+
+
+```{r AggMeta}
+
+
+
+```
+## Assembling the data
