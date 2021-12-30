@@ -80,10 +80,13 @@ cleanFrame
 
 ###Vectorisation
 
+#(DIMENSION NAME + DIMCODE) + PolicyAreaNAME + PACODE + SubPolicyNAME + SPACODE 
+
 #Policy Areas 
 # PAreas <- policydb %>% select("PolicyAreaID") %>% distinct(PolicyAreaID)
-
-PAreas <- policydb %>% distinct(PolicyArea) #List of PAreas
+AggHiearchy <- policydb %>% distinct(SubPArea, BenchmarkID, PolicyArea, PolicyAreaID)
+  
+PAreas <- policydb %>% distinct(PolicyArea, PolicyAreaID) #List of PAreas
 
 vector_PAr <- as.list(PArea) #Make into character strings and list
 vector_PAr

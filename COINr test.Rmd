@@ -343,7 +343,7 @@ Finally, let's try an interactive chart.
 
 Aaand, make a report for one country:
 ```{r}
-#test <- getUnitReport(NPI, usel="NOR", out_type = ".html")
+getUnitReport(NPI, usel="NOR", out_type = ".pdf")
 ```
 
 #Eurostat scatterplot
