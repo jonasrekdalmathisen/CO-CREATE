@@ -5,14 +5,15 @@ date: "28/12/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, cache=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
 In this version, I try to aggregate and play with the policy data to make an index. To do this, I use the COINr package.
 
 ```{r Packages}
-library(devtools, ggbiplot, tidyverse, countrycode, COINr)
+#libraries:
+pacman::p_load(devtools, ggbiplot, countrycode, COINr, reactable, tidyverse)
 
 
 ```
@@ -23,13 +24,14 @@ https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
 ## Input data
 ### Original benchmark
 ### SubPA test
-COINr_SPA <- SPA_level_TF
+
 
 <!-- #Translate to COINr language -->
 
 
-
-```{r}
+```{r COINbase, include=TRUE, eval=FALSE}
+##Load raw files from GlobalPolIndex
+#load()
 
 ## Indicator data 
 COINr_SPA <- SPA_level_TF
@@ -71,7 +73,7 @@ IndData
 ## Indicator metadata
 <!-- Required: IndName, IndCode and Direction -->
 
-```{r Metadata}
+```{r Metadata, eval=FALSE}
 IndMeta <- AggHiearchy
 
 colnames(IndMeta) <- c("PolicyArea", "IndName", "IndCode", "Agg_PolicyDimension")
@@ -94,11 +96,11 @@ IndMeta
 ``` 
 ## Aggregation metadata
 
-```{r AggMeta}
+```{r AggMeta,  eval=FALSE}
 AggMeta <- PAreas
 
 colnames(AggMeta) <- c("Name", "Code")
-  
+
 AggMeta$AgLevel <- 2
 
 AggMeta$Weight <- 1 #Equal weight for all
@@ -106,39 +108,40 @@ AggMeta$Weight <- 1 #Equal weight for all
 AggMeta <- AggMeta %>% add_row(Name="Index", Code="NOURISHING", AgLevel=3, Weight=1)
 
 
-
+AggMeta
 ```
 ## Assembling the data
 Combine the IndData, IndMeta and AggMeta into one hierarchical list.
 
-```{r Assembly}
+```{r Assembly, eval=FALSE}
 NPI <- assemble(IndData = IndData, IndMeta = IndMeta, AggMeta = AggMeta)
 
-ASEMAggMeta
-
+NPI
 ```
 
 # Initial visualisation and analysis
 ## Structure
 The sunburst plot shows the hierarchical structure and effective weights for the simplified NOURISHING index. Effective weights imply their relative contribution to the aggregated level, even with equal weighting applied. This is most apparent at indicator level: the N (level 2)  has eight indicators contributing 0.0125 each, while in N(2), one indicator contributes 0.033. At sub-index level (N, O, U, R, I, S , H, I, N , G) they are contributing equally at 0.1 each.
 
-```{r Structure, echo=FALSE}
-
-plotframework(NPI)
-
+```{r Structure}
+framework <- plotframework(NPI)
+framework
 ```
 
 ## Distributions
-```{r Distribution, echo=FALSE}
+```{r Distribution, echo=FALSE, eval=FALSE}
 
 #Change icodes for other subindexes. Note, bad way of showing the categorical data...
-plotIndDist(NPI, type="Violindot", icodes="N")
+distributeindicator <- plotIndDist(NPI, type="Violindot")
+
+distributeindicator
 
 ```
 
 ## Ranks and maps
-```{r Ranking, echo=FALSE}
+An example of countries implementing N1: Mandatory nutrient lists on packaged food.
 
+```{r Ranking, echo=FALSE, eval=FALSE}
 
 iplotMap(NPI, dset = "Raw", isel = "N1")
 
@@ -149,7 +152,7 @@ There are collinear indicators and, even worse: significant negative indicator c
 
 The table (sort by MEAN), indicate which areas have the 'best' coverage. This is I(2)1, N1 and N7 respectively. Multiple variables have low coverage (sort by MEAN), e. g. G5, H4 and R8.
 
-```{r Stats}
+```{r Stats, eval=FALSE}
 NPI <- getStats(NPI)
 
 NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
@@ -160,7 +163,7 @@ NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TR
 ##Correlations
 It may be pointless assessing correlations because it is bound to happen with binary variables. 
 
-```{r Correlations}
+```{r Correlations, eval=FALSE}
 
 statlist <- getStats(NPI, dset = "Raw", out2="list")
 
@@ -174,14 +177,14 @@ CorellOverview
 
 We can also plot maps of correlations. The first plots indicators (benchmarks) against indicators, within each sub policy area (e.g. N or O). Grey is insignificant correlations. Again, considering the data, high correlations are likely. 
 
-```{r CorellMaps, echo=FALSE}
+```{r CorellMaps, echo=FALSE, eval=FALSE}
 
 plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F)
 
 ```
 This plot shows everything:
 
-```{r CorellMap2, echo=FALSE}
+```{r CorellMap2, echo=FALSE, eval=FALSE}
 
 plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F, grouplev = 0, pval = 0)
 
@@ -190,7 +193,7 @@ plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F, grouplev = 0, pval = 0)
 While indicator level may not be that interesting, the aggregation levels can yield more information. For a sensible aggregation, the levels should harmonise (same way) AND have a correlation of more than 0.3. Multiple of the correlations are less than 0.3 (ref grey zones).
 
 
-```{r CorrelAgg, echo=FALSE}
+```{r CorrelAgg, echo=FALSE, eval=FALSE}
 NPI <- aggregate(NPI, dset = "Raw") 
 
 plotCorr(NPI, dset="Aggregated", aglevs = c(1,2), showvals = T, flagcolours = T)
@@ -198,7 +201,7 @@ plotCorr(NPI, dset="Aggregated", aglevs = c(1,2), showvals = T, flagcolours = T)
 ```
 
 CronAgg displays a high consistency of the sub-pillars within NOURISHING:
-```{r CorellReliability}
+```{r CorellReliability, eval=FALSE}
 #The consistency of subpillars within NOURISHING: high reliability.
 CronAgg <- getCronbach(NPI, dset="Aggregated", icodes="NOURISHING", aglev=2)
 CronAgg
@@ -211,7 +214,9 @@ Using the ten pillars, the PCA show that to explain NOURISHING, we explain 50% o
 
 N.B: PCA assumes linearity. The following is used mostly for exploratory analysis. 
 
-```{r PCA}
+```{r PCA, eval=FALSE}
+NPI <- aggregate(NPI, dset = "Raw")
+                 
 PCAres <- getPCA(NPI, dset="Aggregated", aglev=2, out2="list")
 
 summary(PCAres$PCAresults$NOURISHING$PCAres)
@@ -224,7 +229,7 @@ Three groupings are possible per now. Later, I want to include obesity rates (lo
 
 First, EU countries versus others. GBR and the US explain a lot of the variance. It is a tendency that European countries to slightly better than non-European countries.
 
-```{r PCAplotEU28}
+```{r PCAplotEU28, eval=FALSE}
 
 #Possible groupings for the future: OBESITY rate (low/med/high)
   #Currently, choose between CO-CREATE countries, regions etc
@@ -238,7 +243,7 @@ ggbiplot(PCAres$PCAresults$NOURISHING$PCAres,
 
 ```
 The second plot indicate that CO-CREATE countries do slightly better than both EU and non-European countries in general - with the UK being the key driver among all countries
-```{r PCAplotCOCREATE}
+```{r PCAplotCOCREATE, eval=FALSE}
 
 #Possible groupings for the future: OBESITY rate (low/med/high)
   #Currently, choose between CO-CREATE countries, regions etc
@@ -257,7 +262,7 @@ Normalisation is not necessary if it is all on same scale, this is just to simpl
 
 We can consider the "minmax", "rank", "prank" (percentile score).
 
-```{r normalise}
+```{r normalise, eval=FALSE}
 
 NPI <- normalise(NPI, dset="Raw", ntype="rank")
 
@@ -275,7 +280,7 @@ Possible methods are:
 *Arithmetic mean ("arith_mean")
 *Weighted mean ("median") - wont really make sense here tbh
 
-```{r Aggregation}
+```{r Aggregation, eval=FALSE}
 
 NPI <- aggregate(NPI, dset = "Raw", agtype_bylevel = c("arith_mean", "geom_mean"))
 
@@ -285,7 +290,7 @@ NPI$Data$Aggregated[(ncol(NPI$Data$Aggregated)-10): ncol(NPI$Data$Aggregated)]
 
 ##Results
 ###Tables
-```{r Results}
+```{r Results, eval=FALSE}
 #Rearrange data, output = NULL
 NPI <- getResults(NPI, tab_type = "Summary", out2="COIN")
 
@@ -295,31 +300,31 @@ NPI$Results$SummaryScores %>% head(10)
 Here are the top ten performers. UK, followed by USA and Norway. 
 There seems to be quite a lot of variation for the top 15 countries or so, before it evens out after. 
 
-```{r}
+```{r resultstable, eval=FALSE}
 getResults(NPI, tab_type = "Aggregates") %>%
   reactable::reactable()
 ```
 
 Let's dive into the sub-policy areas: 
 
-```{r}
+```{r spacoloured, eval=FALSE}
 iplotTable(NPI, dset="Aggregated", aglev = 2)
 ```
 
 Maybe we want to find the strengths and weaknesses of a particular country?
 
-```{r Weak}
+```{r Weak, eval=FALSE}
 
 ```
 
 ### Plots
 
 The full index score. Highlighted countries are CO-CREATE.
-```{r}
+```{r fullindex, eval=FALSE}
 iplotBar(NPI, dset="Aggregated", usel=isCoCREATE, aglev = 3)
 ```
 
-```{r}
+```{r indexfull, eval=FALSE}
 iplotMap(NPI, dset="Aggregated", isel="NOURISHING")
 ```
 
@@ -330,19 +335,19 @@ We should perform PCA/grouping analyses to see if different dimensions are cover
 
 Note how weak the median is for all countries lolz. We should probably limit ourselves to Europe.
 
-```{r radar}
+```{r radar, eval=FALSE}
 #GROUP: EU28, COCREATE, REGION
 iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="groupmean", statgroup = "Group_COCREATE") 
 ```
 
 Finally, let's try an interactive chart.
 
-```{r interactive}
+```{r interactive, eval=FALSE}
 #resultsDash(NPI)
 ```
 
 Aaand, make a report for one country:
-```{r}
+```{r unitrep, eval=FALSE}
 getUnitReport(NPI, usel="NOR", out_type = ".pdf")
 ```
 

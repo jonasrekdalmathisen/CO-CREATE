@@ -54,9 +54,9 @@ Data import and packages utilised.
 
 ### Packages
 ```{r Packages}
-library(tidyverse, eurostat, COINr, countrycode)
-
-options(tidyverse.quiet = TRUE)
+#install.packages("pacman")
+#library multiple import
+pacman::p_load(countrycode, eurostat, COINr, pheatmap, tidyverse)
 
 ```
 
@@ -66,7 +66,7 @@ options(tidyverse.quiet = TRUE)
 #WCRF policy database
 policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
 
-colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics", "BenchmarkID", "PolicyAreaID")
+colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics", "BenchmarkID", "PolicyAreaID", "PolicyDim")
 
 policydb <- policydb[-c(1,6)]
 
@@ -78,6 +78,8 @@ countries <- distinct(policydb, Country)
 cleanFrame <- policydb %>% select("PolicyArea", "SubPArea") %>% distinct_all()
 cleanFrame
 
+
+
 ###Vectorisation
 
 #(DIMENSION NAME + DIMCODE) + PolicyAreaNAME + PACODE + SubPolicyNAME + SPACODE 
@@ -88,8 +90,7 @@ AggHiearchy <- policydb %>% distinct(SubPArea, BenchmarkID, PolicyArea, PolicyAr
   
 PAreas <- policydb %>% distinct(PolicyArea, PolicyAreaID) #List of PAreas
 
-vector_PAr <- as.list(PArea) #Make into character strings and list
-vector_PAr
+vector_PAr <- c(t(PAreas))
 
 short_v_PAr <- c("N", "O", "U", "R", "I", "S", "H", "I2", "N2", "G")
 
@@ -104,6 +105,10 @@ vector_SubPas <- c(t(SubPas$BenchmarkID))
 
 SubPas
 #as.list kunne funket
+
+#PolicyDims
+PolicyDims <- policydb %>% distinct(PolicyDim,PolicyAreaID)
+
 ```
 
 
@@ -113,19 +118,21 @@ The `policies` data consists of `r nrow(policydb)` policy actions.
 
 These actions are located in `r nrow(countries)` different countries. The number of policies identified in each country is listed below:
 
+
+
+
 <!-- sum of policies, grouped by country -->
 ```{r}
 PA_countries <- policydb %>% count(Country, sort=TRUE, name = "Number of policy actions")
 
 PA_countries
+
+count
 ```
 
 
 #### A hiearchical overview: Country -> Policy Area -> Sub- Policy area
-
-```{r}
-
-
+```{r countriesz}
 country_hierch <- policydb %>% count(Country, PolicyArea, SubPArea) #Text
 
 ####OR
@@ -166,16 +173,15 @@ PA_SPA
 ```
 
 
+
 ## Methods
 
 
 
 
-<!-- if blank FALSE, else TRUE, på en unik liste -->
-
 ### Make empty index
 ```{r}
-PAreas <- policydb %>% distinct(PolicyArea) #List of PAreas
+PAreas <- policydb %>% distinct(PolicyArea, PolicyAreaID) #List of PAreas
 
 
 
@@ -195,7 +201,7 @@ GI_blank
 
 ### Fill table with true or false
 ```{r Country policy area level}
-country_hierch
+#country_hierch
 
 #Country > PArea > SubPA > Count
 
