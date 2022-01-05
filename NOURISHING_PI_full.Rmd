@@ -1,0 +1,197 @@
+---
+title: "NOURISHING_PI_Full"
+author: "Jonas Rekdal Mathisen"
+date: "03/01/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+This document outlines the NOURISHING policy index methodology using.COINr.
+
+#Data
+We benchmarked five CO-CREATE countries: Norway, Poland, Netherlands, United Kingdom and Portugal. The framework is based on the NOURISHING framework:
+
+![Alt text](C:\Users\JRMA\OneDrive - Folkehelseinstituttet\Dokumenter\CO-CREATE\graphs\PPA-Nourishing-WEB.jpg.webp)
+
+Data manipulation and visualisation is used with the aid of the following packages available from CRAN: 
+
+```{r Packages}
+#libraries:
+pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse)
+
+```
+
+#Initialisation
+https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
+
+##Input data
+```{r load, warning=FALSE}
+
+library(readxl, suppressMessages(T))
+
+#Import the benchmarking results to R
+Benchmark_raw <- read_excel("~/Working in R/PoliciesImplemented/Benchmark_0301_R.xlsx", 
+    sheet = "All countries", col_types = c("text", 
+        "text", "text", "text", "numeric", 
+        "text", "text", "text", "text", "text", 
+        "text", "text", "text", "numeric", 
+        "text", "numeric", "text", "numeric", 
+        "text", "numeric", "text", "numeric"))
+
+#Add PD code
+Benchmark_raw$PD_code <- case_when(
+  Benchmark_raw$`Policy dimension` == "Food environment" ~"FoodEnv",
+  Benchmark_raw$`Policy dimension` == "Food system" ~ "FoodSyst",
+  Benchmark_raw$`Policy dimension` == "Behaviour change communication" ~ "BehCha"
+)
+
+
+#Create unique identifiers
+PD <- Benchmark_raw %>% distinct("Policy dimension", "PD_code" )
+
+PAreas <- Benchmark_raw %>% distinct("Policy area", "Policy letter")
+
+SubPas <- Benchmark_raw %>% distinct("Sub-policy area", "Benchmark ID")
+
+
+
+```
+
+##Transform data to COINr
+###Indicator Data (IndData)
+```{r}
+numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
+
+#Select countries benchmarked and indicator ID only
+IndData_NPI_F <- Benchmark_raw %>% select(c("UniqueID", "NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric"))
+
+#Assign proper names
+colnames(IndData_NPI_F) <- c("UniqueID", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands")
+
+#List of indicators
+Indicators <- c(t(IndData_NPI_F$UniqueID))
+
+#Transpose the table, add column names
+IndData_NPI_F <- data.frame(t(IndData_NPI_F[-1]))
+colnames(IndData_NPI_F) <- Indicators
+
+#Go to COIN
+
+#Fix the index
+IndData_NPI_F$UnitName <- rownames(IndData_NPI_F)
+
+#Make unit codes
+IndData_NPI_F <- IndData_NPI_F %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+IndData_NPI_F <- IndData_NPI_F %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+#Potential groups: GDP, inequality etc, obesity prevalence etc.
+
+IndData_NPI_F <- IndData_NPI_F %>% mutate_if(is_double,as.integer)
+
+IndData_NPI_F
+
+
+```
+
+###Indicator metadata (IndMeta)
+
+```{r}
+#AggHi <- Benchmark_raw %>% select("Policy dimension", "Policy area", "Policy letter", "Sub-policy area", "Benchmark ID") %>% distinct()
+
+#AggHier <- Benchmark_raw %>% select("UniqueID", "Sub-policy area", "Policy area", "Policy dimension") %>% distinct()
+
+AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter", "PD_code") %>% distinct()
+
+colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA", "Agg_PolDim")
+
+
+#Select countries benchmarked and indicator ID only
+IndMeta_NPI_f <- Benchmark_raw %>% select(matches("final_numeric$|UniqueID$|Indicator name$"))
+  #ADD UNITS OF THE INDICATOR (INDUNIT) TO ORIGINAL EXCEL
+
+#Assign proper names
+colnames(IndMeta_NPI_f) <- c("IndCode", "IndName", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands")
+
+IndMeta_NPI_f$Direction <- 1 #All indicators got positive direction
+IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
+
+IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
+
+IndMeta_NPI_f$Agg_Index <- "NOURISHING"
+
+```
+
+
+### Aggregation metadata (AggMeta)
+
+```{r}
+#AggMeta <- Benchmark_raw %>% select("Policy dimension", "Policy area", "Policy letter", "Sub-policy area", "Benchmark ID") %>%
+
+#SubPA = 1
+
+SubPas <- Benchmark_raw %>% select("Sub-policy area", "Benchmark ID") %>% distinct()
+
+colnames(SubPas) <- c("Name", "Code")
+
+SubPas$AgLevel = 2
+
+#PA = 2
+PAreas <- Benchmark_raw %>% select("Policy area", "Policy letter") %>% distinct()
+
+colnames(PAreas) <- c("Name", "Code")
+
+PAreas$AgLevel = 3
+
+#PD = 3
+PD <- Benchmark_raw %>% select("Policy dimension", "PD_code") %>% distinct()
+
+colnames(PD) <- c("Name", "Code")
+
+PD$AgLevel = 4
+
+#Merge the three aggregation levels
+AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas, PD))
+
+AggMeta_NPI_f$Weight = 1 
+
+#INDEX = 4
+AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=5, Weight=1)
+
+```
+
+###Assemble the data to COINr
+
+```{r}
+
+NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f)
+```
+
+# Initial visualisation and analysis
+## Structure
+The sunburst plot shows the hierarchical structure and effective weights for the simplified NOURISHING index. Effective weights imply their relative contribution to the aggregated level, even with equal weighting applied. 
+
+```{r Structure}
+framework <- plotframework(NPI_f)
+framework
+
+#Kunne man hatt e.g. et LAND i midten? De som er N/A kan gråes ut. E.g H7 -> Nei = Grå. Om alle i FoodSyst=0, blir alt der grått etc.
+```
+
+## Distributions
+
+```{r Distribution}
+
+```
+
