@@ -194,7 +194,7 @@ pre code {
 <h3>Packages</h3>
 <pre class="r"><code>#install.packages(&quot;pacman&quot;)
 #library multiple import
-pacman::p_load(tidyverse, countrycode, eurostat, COINr, pheatmap)</code></pre>
+pacman::p_load(countrycode, eurostat, COINr, pheatmap, tidyverse)</code></pre>
 </div>
 <div id="data-source" class="section level3">
 <h3>Data source</h3>
@@ -234,31 +234,6 @@ cleanFrame</code></pre>
 ##  9 Offer healthy food and set standards i~ &quot;Fruit &amp; vegetable initiatives in sc~
 ## 10 Offer healthy food and set standards i~ &quot;Mandatory standards for food availa~
 ## # ... with 57 more rows</code></pre>
-<p>The <code>policies</code> data consists of 899 policy actions.</p>
-<div id="policy-actions-per-country" class="section level4">
-<h4>Policy actions per country</h4>
-<p>These actions are located in 137 different countries. The number of policies identified in each country is listed below:</p>
-<!-- sum of policies, grouped by country -->
-<pre class="r"><code>PA_countries &lt;- policydb %&gt;% count(Country, sort=TRUE, name = &quot;Number of policy actions&quot;)
-
-PA_countries</code></pre>
-<pre><code>## # A tibble: 137 x 2
-##    Country     `Number of policy actions`
-##    &lt;chr&gt;                            &lt;int&gt;
-##  1 UK                                  66
-##  2 USA                                 50
-##  3 Norway                              33
-##  4 Portugal                            33
-##  5 Malaysia                            23
-##  6 Netherlands                         22
-##  7 Poland                              21
-##  8 Australia                           20
-##  9 Germany                             20
-## 10 Spain                               20
-## # ... with 127 more rows</code></pre>
-</div>
-<div id="a-hiearchical-overview-country---policy-area---sub--policy-area" class="section level4">
-<h4>A hiearchical overview: Country -&gt; Policy Area -&gt; Sub- Policy area</h4>
 <pre class="r"><code>###Vectorisation
 
 #(DIMENSION NAME + DIMCODE) + PolicyAreaNAME + PACODE + SubPolicyNAME + SPACODE 
@@ -341,11 +316,40 @@ SubPas</code></pre>
 <pre class="r"><code>#as.list kunne funket
 
 #PolicyDims
-PolicyDims &lt;- policydb %&gt;% distinct(PolicyDim,PolicyAreaID)
+PolicyDims &lt;- policydb %&gt;% distinct(PolicyDim,PolicyAreaID)</code></pre>
+<p>The <code>policies</code> data consists of 899 policy actions.</p>
+<div id="policy-actions-per-country" class="section level4">
+<h4>Policy actions per country</h4>
+<p>These actions are located in 137 different countries. The number of policies identified in each country is listed below:</p>
+<!-- sum of policies, grouped by country -->
+<pre class="r"><code>PA_countries &lt;- policydb %&gt;% count(Country, sort=TRUE, name = &quot;Number of policy actions&quot;)
 
-
-
-country_hierch &lt;- policydb %&gt;% count(Country, PolicyArea, SubPArea) #Text
+PA_countries</code></pre>
+<pre><code>## # A tibble: 137 x 2
+##    Country     `Number of policy actions`
+##    &lt;chr&gt;                            &lt;int&gt;
+##  1 UK                                  66
+##  2 USA                                 50
+##  3 Norway                              33
+##  4 Portugal                            33
+##  5 Malaysia                            23
+##  6 Netherlands                         22
+##  7 Poland                              21
+##  8 Australia                           20
+##  9 Germany                             20
+## 10 Spain                               20
+## # ... with 127 more rows</code></pre>
+<pre class="r"><code>count</code></pre>
+<pre><code>## function (x, ..., wt = NULL, sort = FALSE, name = NULL) 
+## {
+##     UseMethod(&quot;count&quot;)
+## }
+## &lt;bytecode: 0x00000000164eb998&gt;
+## &lt;environment: namespace:dplyr&gt;</code></pre>
+</div>
+<div id="a-hiearchical-overview-country---policy-area---sub--policy-area" class="section level4">
+<h4>A hiearchical overview: Country -&gt; Policy Area -&gt; Sub- Policy area</h4>
+<pre class="r"><code>country_hierch &lt;- policydb %&gt;% count(Country, PolicyArea, SubPArea) #Text
 
 ####OR
 
@@ -433,10 +437,9 @@ PA_SPA</code></pre>
 </div>
 <div id="methods" class="section level2">
 <h2>Methods</h2>
-<!-- if blank FALSE, else TRUE, på en unik liste -->
 <div id="make-empty-index" class="section level3">
 <h3>Make empty index</h3>
-<pre class="r"><code>PAreas &lt;- policydb %&gt;% distinct(PolicyArea) #List of PAreas
+<pre class="r"><code>PAreas &lt;- policydb %&gt;% distinct(PolicyArea, PolicyAreaID) #List of PAreas
 
 
 
@@ -468,22 +471,9 @@ GI_blank</code></pre>
 </div>
 <div id="fill-table-with-true-or-false" class="section level3">
 <h3>Fill table with true or false</h3>
-<pre class="r"><code>country_hierch</code></pre>
-<pre><code>## # A tibble: 800 x 4
-##    Country             PolicyArea                 SubPArea                     n
-##    &lt;chr&gt;               &lt;chr&gt;                      &lt;chr&gt;                    &lt;int&gt;
-##  1 Afghanistan         Inform people about food ~ Development and communi~     1
-##  2 Albania             Inform people about food ~ Development and communi~     1
-##  3 American Samoa      Harness supply chain and ~ Governance structures f~     1
-##  4 Antigua and Barbuda Harness supply chain and ~ Governance structures f~     1
-##  5 Antigua and Barbuda Inform people about food ~ Development and communi~     1
-##  6 Antigua and Barbuda Inform people about food ~ Public awareness, mass ~     1
-##  7 Argentina           Improve nutritional quali~ Mandatory limits on lev~     1
-##  8 Argentina           Improve nutritional quali~ Mandatory removal of tr~     1
-##  9 Argentina           Improve nutritional quali~ Voluntary reformulation~     1
-## 10 Argentina           Inform people about food ~ Development and communi~     1
-## # ... with 790 more rows</code></pre>
-<pre class="r"><code>#Country &gt; PArea &gt; SubPA &gt; Count
+<pre class="r"><code>#country_hierch
+
+#Country &gt; PArea &gt; SubPA &gt; Count
 
 truef &lt;- country_hierch %&gt;% mutate(
   PolicyActionImplemented = if_else(n &gt; 0, TRUE, FALSE, missing=FALSE)
@@ -754,6 +744,63 @@ GI &lt;- GI_blank
 <div id="vectorisation" class="section level3">
 <h3>Vectorisation</h3>
 <p>lvl1 &lt;- “NOURISHING” lvl2 &lt;- c(“Food environment”, “Food system”, “Behaviour change communication”) lvl3 &lt;- c(&quot;&quot;)</p>
+<pre class="r"><code>##Load raw files from GlobalPolIndex
+
+
+## Indicator data 
+COINr_SPA &lt;- SPA_level_TF
+
+names(COINr_SPA)[names(COINr_SPA) == &quot;Country&quot;] &lt;- &quot;UnitName&quot;
+
+
+COINr_SPA &lt;- COINr_SPA %&gt;% mutate(UnitCode = countrycode(sourcevar = UnitName, origin=&quot;country.name&quot;, destination=&quot;iso3c&quot;))</code></pre>
+<pre><code>## Warning in countrycode_convert(sourcevar = sourcevar, origin = origin, destination = dest, : Some values were not matched unambiguously: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna</code></pre>
+<pre><code>## Warning in countrycode_convert(sourcevar = sourcevar, origin = origin, destination = dest, : Some strings were matched more than once, and therefore set to &lt;NA&gt; in the result: Romania, Wallis and Futuna,ROU,WLF</code></pre>
+<pre class="r"><code>#Some values are missing: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna
+
+Missing &lt;- COINr_SPA %&gt;% subset(is.na(UnitCode)) %&gt;% select(UnitName, UnitCode)
+
+#For this exercise these are dropped
+COINr_SPA &lt;- na.omit(COINr_SPA)
+
+isCoCREATE &lt;- c(&quot;NOR&quot;, &quot;NLD&quot;, &quot;PRT&quot;, &quot;POL&quot;, &quot;GBR&quot;)
+
+#Continue adding groups for countries 
+COINr_SPA &lt;- COINr_SPA %&gt;% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin=&quot;country.name&quot;, destination=&quot;continent&quot;), 
+  Group_EU28 = countrycode(sourcevar = UnitName, origin=&quot;country.name&quot;, destination=&quot;eu28&quot;),
+  Group_Region = countrycode(sourcevar = UnitName, origin=&quot;country.name&quot;, destination=&quot;region&quot;), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))</code></pre>
+<pre><code>## Warning in countrycode_convert(sourcevar = sourcevar, origin = origin, destination = dest, : Some values were not matched unambiguously: St Helena</code></pre>
+<pre class="r"><code>#Consider adding certain variables etc for further analysis (eurostat stuff)
+
+
+
+IndData &lt;- COINr_SPA
+
+IndData &lt;- IndData %&gt;% mutate_if(is_double,as.integer)
+
+IndData</code></pre>
+<pre><code>## # A tibble: 133 x 73
+##    UnitName    `I(2)1`    H7 `I(2)3`    I1    I3    I4 `I(2)4`    N2    G1    G2
+##    &lt;chr&gt;         &lt;int&gt; &lt;int&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;
+##  1 Afghanistan       1     0       0     0     0     0       0     0     0     0
+##  2 Albania           1     0       0     0     0     0       0     0     0     0
+##  3 American S~       0     1       0     0     0     0       0     0     0     0
+##  4 Antigua an~       1     1       1     0     0     0       0     0     0     0
+##  5 Argentina         1     0       0     1     1     1       1     1     0     0
+##  6 Australia         1     0       1     1     0     0       1     0     1     1
+##  7 Austria           1     0       0     1     0     1       0     0     0     1
+##  8 Bahamas           1     1       1     0     0     0       0     0     0     0
+##  9 Bahrain           0     0       0     0     0     0       0     0     0     0
+## 10 Bangladesh        1     0       0     0     0     0       0     0     0     0
+## # ... with 123 more rows, and 62 more variables: N1 &lt;int&gt;, N3 &lt;int&gt;, N5 &lt;int&gt;,
+## #   N7 &lt;int&gt;, N8 &lt;int&gt;, O1 &lt;int&gt;, O2 &lt;int&gt;, O4 &lt;int&gt;, O5 &lt;int&gt;, O7 &lt;int&gt;,
+## #   R4 &lt;int&gt;, G7 &lt;int&gt;, S4 &lt;int&gt;, U1 &lt;int&gt;, G3 &lt;int&gt;, I(2)6 &lt;int&gt;, R10 &lt;int&gt;,
+## #   S2 &lt;int&gt;, G4 &lt;int&gt;, O6 &lt;int&gt;, H2 &lt;int&gt;, H3 &lt;int&gt;, H5 &lt;int&gt;, N(2)2 &lt;int&gt;,
+## #   N(2)3 &lt;int&gt;, R3 &lt;int&gt;, R5 &lt;int&gt;, S3 &lt;int&gt;, U5 &lt;int&gt;, R1 &lt;int&gt;, R2 &lt;int&gt;,
+## #   R6 &lt;int&gt;, I(2)2 &lt;int&gt;, U3 &lt;int&gt;, O3 &lt;int&gt;, R9 &lt;int&gt;, I(2)5 &lt;int&gt;, I5 &lt;int&gt;,
+## #   N4 &lt;int&gt;, U4 &lt;int&gt;, R7 &lt;int&gt;, S5 &lt;int&gt;, R8 &lt;int&gt;, I6 &lt;int&gt;, N6 &lt;int&gt;, ...</code></pre>
 </div>
 </div>
 

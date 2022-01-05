@@ -48,11 +48,11 @@ NPI_countries <- IndData %>% select(c("UnitName", "UnitCode"))
 #https://ec.europa.eu/eurostat/web/health/data/main-tables
 
 test1 <- "TESSI190"
-test2 <- c("TESSI190", "HLTH_EHIS_MH1E")
+test2 <- c("hlth_ehis_bm1e", "hlth_dpe010")
 
 GeneralVariables <- c(
-  "hlth_ehis_bm1e", #Body Mass Index (no kids)
-  "SDG_01_10", #Risk of poverty or social exclusion rate 
+  "hlth_ehis_bm1e", #Body Mass Index (no kids) #OK
+  "hlth_dpe010", #Risk of poverty or social exclusion rate #OK
   "ilc_di11", #Income quintile ratio S80/20 for disposable income
   "TESSI190", #Gini coefficient
   "sdg_03_20", #Share of people with good or very good percieved health
@@ -84,21 +84,31 @@ meta_list <- c()
 
 #Switch "test" with other vectors
 for (dataset in test2){
-  #Get name of df
+  #Get name of dataframe
   dataset_name <- eurostat::label_eurostat_tables(dataset)
   print(dataset_name)
   
-  #Retrieve data
+  #Retrieve data in raw format, evaluate time_format=num
   df_data <- eurostat::get_eurostat(dataset, time_format = "raw")
   df_data <- eurostat::label_eurostat(df_data, code = df_data$geo, fix_duplicated=TRUE)
   
   
-}
+}hlth_ehis_bm1e
   
-dataset_name <- eurostat::label_eurostat_tables(test1)
+dataset_name <- eurostat::label_eurostat_tables(test2)
 
-df_data <- eurostat::get_eurostat("SDG_01_10")
+x <- search_eurostat("hlth_ehis_bm1e")
+
+hlth_ehis_bm1e <- eurostat::get_eurostat("hlth_ehis_bm1e")
+
+hlth_ehis_bm1e <- eurostat::get_eurostat(hlth_ehis_bm1e, time_format = "num")
+
+df_data <- eurostat::label_eurostat(df_data, code = df_data$geo, fix_duplicated=TRUE)
+
 
 dataset_name
+```
+```{r}
+search_eurostat("BMI")
 ```
 

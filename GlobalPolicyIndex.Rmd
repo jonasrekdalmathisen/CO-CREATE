@@ -58,6 +58,7 @@ Data import and packages utilised.
 #library multiple import
 pacman::p_load(countrycode, eurostat, COINr, pheatmap, tidyverse)
 
+count
 ```
 
 ### Data source
@@ -337,3 +338,41 @@ There will be four main steps outlined here.
 lvl1 <- "NOURISHING"
 lvl2 <- c("Food environment", "Food system", "Behaviour change communication")
 lvl3 <- c("")
+
+```{r COINbase, include=TRUE}
+##Load raw files from GlobalPolIndex
+
+
+## Indicator data 
+COINr_SPA <- SPA_level_TF
+
+names(COINr_SPA)[names(COINr_SPA) == "Country"] <- "UnitName"
+
+
+COINr_SPA <- COINr_SPA %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
+
+#Some values are missing: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna
+
+Missing <- COINr_SPA %>% subset(is.na(UnitCode)) %>% select(UnitName, UnitCode)
+
+#For this exercise these are dropped
+COINr_SPA <- na.omit(COINr_SPA)
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+COINr_SPA <- COINr_SPA %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+#Consider adding certain variables etc for further analysis (eurostat stuff)
+
+
+
+IndData <- COINr_SPA
+
+IndData <- IndData %>% mutate_if(is_double,as.integer)
+
+IndData

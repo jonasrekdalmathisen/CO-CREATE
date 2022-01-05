@@ -412,7 +412,7 @@ IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="GB
 
 IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="MYS", 19.7))
 
-colnames(IndexScore_geo) <- c("UnitCode", "NOURSHING", "% Obese")
+#colnames(IndexScore_geo) <- c("UnitCode", "NOURSHING", "% Obese")
 IndexScore_geo %>% reactable::reactable()
 ```
 
@@ -515,4 +515,71 @@ plot <- IndexScore_U %>% filter(!is.na(values)) %>%
 plot
 ```
 
-#Sensitivity analyses
+#Cluster analysis
+##EU28 + NOR
+```{r}
+#Prepare data
+Aggregates <- getResults(NPI, tab_type = "Aggregates") 
+
+Aggregates <- Aggregates %>% mutate(
+  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ "TRUE", TRUE ~ "FALSE"))
+
+Aggregates <- Aggregates %>% mutate(Group_EU28=replace(Group_EU28, UnitCode==c("NOR"), "EU"))
+
+```
+
+Prepare for EU analysis, highlighting COCREATE countries
+```{r eu28nor}
+eu_numerical_agg <- Aggregates
+
+rownames(eu_numerical_agg) <- sapply(Aggregates$UnitName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+#Remove any character text
+eu_numerical_agg <- eu_numerical_agg %>% filter(Group_EU28=="EU") %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU28, -Group_COCREATE, -Group_Region)
+
+#Separate df to highlight co-create countries in data
+COCREATE_cntr <- Aggregates %>% filter(Group_EU28=="EU") %>% select(Group_COCREATE)  
+
+rownames(COCREATE_cntr) = rownames(eu_numerical_agg) 
+
+#Make the heatmap
+EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=COCREATE_cntr, silent=F)
+
+#If silent=T <- only dendrodram
+##EU28_cluster$tree_row %>% as.dendrogram() %>% plot(horiz =F)
+
+
+#https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/ Save fig as pic
+```
+
+#Cluster analysis all countries
+
+Citation: https://towardsdatascience.com/pheatmap-draws-pretty-heatmaps-483dab9a3cc
+
+
+```{r}
+
+all_numerical_agg <- Aggregates
+
+rownames(all_numerical_agg) <- sapply(Aggregates$UnitName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+all_numerical_agg <- all_numerical_agg %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU28, -Group_COCREATE, -Group_Region)
+
+#Separate df to highlight co-create countries in data
+Regions <- Aggregates %>% select(Group_Region)  
+
+rownames(Regions) = rownames(all_numerical_agg) 
+
+#Make the heatmap
+
+
+all_cluster <- pheatmap::pheatmap(all_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=Regions)
+
+
+
+
+#https://www.biostars.org/p/287512/ Try this to make the dendrograms only
+
+```
