@@ -80,9 +80,21 @@ isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
 #Continue adding groups for countries 
 COINr_SPA <- COINr_SPA %>% mutate(
   Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
-  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
-  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
+  Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
   Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+COINr_SPA <- COINr_SPA %>% mutate(Group_EU28 = case_when(
+  UnitName == "NOR" ~ "EU", 
+  UnitName == "ISL" ~ "EU", 
+  UnitName == "LIE" ~ "EU",
+  UnitName == "CHE" ~ "EU",
+  TRUE ~ Group_EU)
+  #Add RUSSIA?
+)
+
+#only European countries for idnexation
+COINr_SPA <- COINr_SPA %>% filter(grepl("Europe$", Group_Region))
 
 #Consider adding certain variables etc for further analysis (eurostat stuff)
 
@@ -432,7 +444,7 @@ corell
 
 Create a scatterplot with NOURISHING score (y) and obesity rate (total population):
 
-```{r plotit}
+```{r plotit2}
 
 meanNourish <- mean(IndexScore_geo$NOURISHING)
 
@@ -451,7 +463,7 @@ plot
 ##SSB consumption versus index
 
 Getting data from Eurostat
-```{r}
+```{r eurostatx}
 hlth_ehis_fv7e <- eurostat::get_eurostat("hlth_ehis_fv7e")
 
 hlth_ehis_fv7e
@@ -470,7 +482,7 @@ SSB_euro %>% reactable::reactable()
 ```
 Mapping a plot using U3: Use economic tools to address food affordability and purchase incentives
 
-```{r}
+```{r joindatx}
 IndexScore_U <- getResults(NPI, tab_type = "Aggregates") %>% select(UnitCode, U)
 
 IndexScore_U <- left_join(IndexScore_U, BMI_euro, by = c("UnitCode" ="geo2"))
@@ -499,7 +511,7 @@ corell
 
 Create a scatterplot with NOURISHING score (y) and ssb daily (total population):
 
-```{r plotit}
+```{r plotit_U}
 
 meanU <- mean(IndexScore_U$U)
 
@@ -545,7 +557,7 @@ COCREATE_cntr <- Aggregates %>% filter(Group_EU28=="EU") %>% select(Group_COCREA
 rownames(COCREATE_cntr) = rownames(eu_numerical_agg) 
 
 #Make the heatmap
-EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=COCREATE_cntr, silent=F)
+EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F)
 
 #If silent=T <- only dendrodram
 ##EU28_cluster$tree_row %>% as.dendrogram() %>% plot(horiz =F)
