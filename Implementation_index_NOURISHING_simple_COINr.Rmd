@@ -20,10 +20,6 @@ pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse)
 https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
 
 ## Input data
-### Original benchmark
-### SubPA test
-
-
 ```{r loadGPI}
 policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
 
@@ -32,9 +28,6 @@ colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Co
 policydb <- policydb[-c(1,6)]
 
 country_hierch2 <- policydb %>% count(Country, PolicyAreaID, BenchmarkID)
-
-country_hierch2
-#Country > PArea > SubPA > Count
 
 truef_spa <- country_hierch2 %>% mutate(
   PolicyActionImplemented = if_else(n > 0, TRUE, FALSE, missing=FALSE)
@@ -56,11 +49,22 @@ PAreas <- policydb %>% distinct(PolicyArea, PolicyAreaID) #List of PAreas
 SubPas <- policydb %>% distinct(SubPArea, BenchmarkID)
 
 ```
+## Descriptive stats of the policy database from WCRF
 
-Let's traslate to COINr tool
+There are significant differences in number of policy actions collected per country: 
+```{r}
+policydb %>% count(Country, sort=TRUE, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE)
+```
+In the following table it is evident that there are differences also by policy areas and sub-policy areas. The table is sort-able (e.g by PolicyArea).
+```{r}
 
+policydb %>% count(PolicyArea, SubPArea, sort=F, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE, filterable = TRUE)
+
+```
+
+
+## Prepare data for analysis using COINr
 ```{r COINbase, include=TRUE}
-## Indicator data 
 COINr_SPA <- SPA_level_TF
 
 names(COINr_SPA)[names(COINr_SPA) == "Country"] <- "UnitName"
@@ -89,8 +93,8 @@ COINr_SPA <- COINr_SPA %>% mutate(Group_EU28 = case_when(
   UnitName == "ISL" ~ "EU", 
   UnitName == "LIE" ~ "EU",
   UnitName == "CHE" ~ "EU",
+  UnitName == "RUS" ~ "NA", #not part of scan this round
   TRUE ~ Group_EU)
-  #Add RUSSIA?
 )
 
 #only European countries for idnexation
@@ -173,14 +177,6 @@ framework <- plotframework(NPI)
 framework
 ```
 
-## Distributions
-```{r Distribution, echo=FALSE}
-#Change icodes for other subindexes. Note, bad way of showing the categorical data...
-distributeindicator <- plotIndDist(NPI, type="Violindot")
-
-distributeindicator
-
-```
 
 ## Ranks and maps
 An example of countries implementing N1: Mandatory nutrient lists on packaged food.
@@ -201,6 +197,8 @@ NPI <- getStats(NPI)
 NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
 
 ```
+
+
 
 #Multivariate analysis 
 ##Correlations
@@ -301,7 +299,7 @@ Normalisation is not necessary if it is all on same scale, this is just to simpl
 We can consider the "minmax", "rank", "prank" (percentile score).
 
 ```{r normalise}
-NPI <- normalise(NPI, dset="Raw", ntype="rank")
+NPI <- normalise(NPI, dset="Raw", ntype="minmax")
 
 ##iplotIndDist2(NPI, dsets = c("Raw","Normalised"), 
 #  icodes = "N1", ptype = "Histogram")
@@ -318,7 +316,7 @@ Possible methods are:
 *Weighted mean ("median") - wont really make sense here tbh
 
 ```{r Aggregation}
-NPI <- aggregate(NPI, dset = "Raw", agtype_bylevel = c("arith_mean", "geom_mean"))
+NPI <- aggregate(NPI, dset = "Normalised", agtype_bylevel = c("arith_mean", "geom_mean"))
 
 #Only index numbers after aggegation
 NPI$Data$Aggregated[(ncol(NPI$Data$Aggregated)-10): ncol(NPI$Data$Aggregated)]
@@ -358,7 +356,7 @@ Maybe we want to find the strengths and weaknesses of a particular country?
 
 The full index score. Highlighted countries are CO-CREATE.
 ```{r fullindex}
-iplotBar(NPI, dset="Aggregated", usel=isCoCREATE, aglev = 3)
+iplotBar(NPI, dset="Aggregated", usel=isCoCREATE, stack_children =F, aglev = 3)
 ```
 
 ```{r indexfull}
@@ -372,9 +370,14 @@ We should perform PCA/grouping analyses to see if different dimensions are cover
 
 Note how weak the median is for all countries lolz. We should probably limit ourselves to Europe.
 
-```{r radar}
+```{r radar_all}
+iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="mean") 
+```
+
+
+```{r radar_COC}
 #GROUP: EU28, COCREATE, REGION
-iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="groupmean", statgroup = "Group_COCREATE") 
+iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="groupmean", statgroup = "Group_COCREATE", statgroup_name = "CO-CREATE countries") 
 ```
 
 Finally, let's try an interactive chart.
@@ -385,10 +388,22 @@ Finally, let's try an interactive chart.
 
 Aaand, make a report for one country:
 ```{r unitrep}
-#getUnitReport(NPI, usel="NOR", out_type = ".pdf")
+#getUnitReport(NPI, usel="GBR", out_type = ".pdf")
 ```
 
 #Analysing results
+
+##Benchmarks
+```{r}
+NPI$Analysis$Normalised$StatTable$Mean %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
+
+MeanBenchmarks <- NPI$Analysis$Raw$StatTable$Mean %>% roundDF () %>% t() %>% as.data.frame()
+colnames(MeanBenchmarks) <- c("Mean")
+
+Benchmark_cluster <- pheatmap::pheatmap(MeanBenchmarks, cluster_cols = F, main="Clustering of benchmarks by mean", cutree_rows=7, silent=F)
+
+```
+
 
 ##Get data on obesity
 ```{r GetEurostat}
@@ -440,6 +455,10 @@ mean(regline)
 corell <- cor.test(IndexScore_geo$NOURISHING, IndexScore_geo$values, method = "pearson")
 corell
 
+x <- IndexScore_geo$NOURISHING
+y <- IndexScore_geo$values
+
+x
 ```
 
 Create a scatterplot with NOURISHING score (y) and obesity rate (total population):
@@ -463,7 +482,7 @@ plot
 ##SSB consumption versus index
 
 Getting data from Eurostat
-```{r eurostatx}
+```{r eurostatx, include=F}
 hlth_ehis_fv7e <- eurostat::get_eurostat("hlth_ehis_fv7e")
 
 hlth_ehis_fv7e
@@ -482,7 +501,7 @@ SSB_euro %>% reactable::reactable()
 ```
 Mapping a plot using U3: Use economic tools to address food affordability and purchase incentives
 
-```{r joindatx}
+```{r joindatx, include=F}
 IndexScore_U <- getResults(NPI, tab_type = "Aggregates") %>% select(UnitCode, U)
 
 IndexScore_U <- left_join(IndexScore_U, BMI_euro, by = c("UnitCode" ="geo2"))
@@ -499,7 +518,7 @@ colnames(IndexScore_geo) <- c("UnitCode", "NOURSHING", "SSB consumption at least
 IndexScore_U %>% reactable::reactable()
 ```
 
-```{r reglineSSB}
+```{r reglineSSB, include=F}
 reglineU <- IndexScore_U %>% filter(!is.na(values)) %>% lm(U ~ values,.) %>% fitted.values()
 
 mean(reglineU)
@@ -509,24 +528,6 @@ corell
 
 ```
 
-Create a scatterplot with NOURISHING score (y) and ssb daily (total population):
-
-```{r plotit_U}
-
-meanU <- mean(IndexScore_U$U)
-
-plot <- IndexScore_U %>% filter(!is.na(values)) %>%
-  plotly::plot_ly(x=~values, y= ~U, mode="markers", text =~UnitCode) %>%
-  plotly::add_markers(y= ~U) %>%
-  plotly::add_trace(x=~values, y=reglineU, mode="lines") %>%
-  plotly::add_lines(y=meanU) %>%
-  plotly::layout(showlegend=F) %>%
-  plotly::add_text(textposition="top right")
-
-
-plot
-```
-
 #Cluster analysis
 ##EU28 + NOR
 ```{r}
@@ -534,11 +535,19 @@ plot
 Aggregates <- getResults(NPI, tab_type = "Aggregates") 
 
 Aggregates <- Aggregates %>% mutate(
-  Group_EU28 = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
-  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="region"), 
-  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ "TRUE", TRUE ~ "FALSE"))
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
 
-Aggregates <- Aggregates %>% mutate(Group_EU28=replace(Group_EU28, UnitCode==c("NOR"), "EU"))
+Aggregates <- Aggregates %>% mutate(Group_EU = case_when(
+  UnitName == "NOR" ~ "EU", 
+  UnitName == "ISL" ~ "EU", 
+  UnitName == "LIE" ~ "EU",
+  UnitName == "CHE" ~ "EU",
+  UnitName == "RUS" ~ "NA",
+  TRUE ~ Group_EU)
+)
 
 ```
 
@@ -549,15 +558,19 @@ eu_numerical_agg <- Aggregates
 rownames(eu_numerical_agg) <- sapply(Aggregates$UnitName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
 
 #Remove any character text
-eu_numerical_agg <- eu_numerical_agg %>% filter(Group_EU28=="EU") %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU28, -Group_COCREATE, -Group_Region)
+eu_numerical_agg <- eu_numerical_agg %>% filter(Group_EU=="EU") %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU, -Group_COCREATE, -Group_Region, -Group_Continent)
 
 #Separate df to highlight co-create countries in data
-COCREATE_cntr <- Aggregates %>% filter(Group_EU28=="EU") %>% select(Group_COCREATE)  
-
+COCREATE_cntr <- Aggregates %>% filter(Group_EU=="EU") %>% select(Group_COCREATE)  
 rownames(COCREATE_cntr) = rownames(eu_numerical_agg) 
 
+#Separate df to highlight EU regions
+Regions <- Aggregates %>% filter(Group_EU=="EU") %>%  select(Group_Region)  
+rownames(Regions) = rownames(eu_numerical_agg) 
+Regions <- as.data.frame(Regions)
+
 #Make the heatmap
-EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F)
+EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F, annotation_rows = Regions)
 
 #If silent=T <- only dendrodram
 ##EU28_cluster$tree_row %>% as.dendrogram() %>% plot(horiz =F)
@@ -571,7 +584,7 @@ EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clu
 Citation: https://towardsdatascience.com/pheatmap-draws-pretty-heatmaps-483dab9a3cc
 
 
-```{r}
+```{r all, include=FALSE, eval=FALSE}
 
 all_numerical_agg <- Aggregates
 
@@ -587,7 +600,7 @@ rownames(Regions) = rownames(all_numerical_agg)
 #Make the heatmap
 
 
-all_cluster <- pheatmap::pheatmap(all_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=Regions)
+all_cluster <- pheatmap::pheatmap(all_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=Group_Region)
 
 
 
