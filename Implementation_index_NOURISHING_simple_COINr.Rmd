@@ -67,6 +67,8 @@ policydb %>% count(PolicyArea, SubPArea, sort=F, name = "Number of policy action
 ```{r COINbase, include=TRUE}
 COINr_SPA <- SPA_level_TF
 
+COINr_SPA <- filter(COINr_SPA, Country!="Romania, Wallis and Futuna")
+
 names(COINr_SPA)[names(COINr_SPA) == "Country"] <- "UnitName"
 
 
@@ -88,25 +90,24 @@ COINr_SPA <- COINr_SPA %>% mutate(
   Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
   Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
 
-COINr_SPA <- COINr_SPA %>% mutate(Group_EU28 = case_when(
-  UnitName == "NOR" ~ "EU", 
-  UnitName == "ISL" ~ "EU", 
-  UnitName == "LIE" ~ "EU",
-  UnitName == "CHE" ~ "EU",
-  UnitName == "RUS" ~ "NA", #not part of scan this round
+COINr_SPA <- na.omit(COINr_SPA)
+
+COINr_SPA <- COINr_SPA %>% mutate(Group_EU = case_when(
+  UnitCode == "NOR" ~ "EU", 
+  UnitCode == "ISL" ~ "EU", 
+  UnitCode == "LIE" ~ "EU",
+  UnitCode == "CHE" ~ "EU",
+  UnitCode == "RUS" ~ "NA", #not part of scan this round
   TRUE ~ Group_EU)
 )
 
-#only European countries for idnexation
-COINr_SPA <- COINr_SPA %>% filter(grepl("Europe$", Group_Region))
+COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
 
 #Consider adding certain variables etc for further analysis (eurostat stuff)
 
 
 
-IndData <- COINr_SPA
-
-IndData <- IndData %>% mutate_if(is_double,as.integer)
+IndData <- COINr_SPA %>% mutate_if(is_double,as.integer)
 
 IndData
 
@@ -181,8 +182,11 @@ framework
 ## Ranks and maps
 An example of countries implementing N1: Mandatory nutrient lists on packaged food.
 
+
 ```{r Ranking, echo=FALSE}
 iplotMap(NPI, dset = "Raw", isel = "N1")
+
+
 
 #plotIndDot(NPI, dset="Raw", icode="N1", usel = isCoCREATE, add_stat="median") #not for binary data at all
 ```
@@ -191,8 +195,8 @@ There are collinear indicators and, even worse: significant negative indicator c
 
 The table (sort by MEAN), indicate which areas have the 'best' coverage. This is I(2)1, N1 and N7 respectively. Multiple variables have low coverage (sort by MEAN), e. g. G5, H4 and R8.
 
-```{r Stats}
-NPI <- getStats(NPI)
+```{r Stats, warning=FALSE}
+NPI <- getStats(NPI, dset="Raw")
 
 NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
 
@@ -204,7 +208,7 @@ NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TR
 ##Correlations
 It may be pointless assessing correlations because it is bound to happen with binary variables. 
 
-```{r Correlations}
+```{r Correlations, eval=F, include=F}
 statlist <- getStats(NPI, dset = "Raw", out2="list")
 
 #Example of G5 being negativley correltaed to all other pillars.
@@ -217,13 +221,13 @@ CorellOverview
 
 We can also plot maps of correlations. The first plots indicators (benchmarks) against indicators, within each sub policy area (e.g. N or O). Grey is insignificant correlations. Again, considering the data, high correlations are likely. 
 
-```{r CorellMaps, echo=FALSE}
-plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F)
+```{r CorellMaps, echo=FALSE, include=F}
+#plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F)
 
 ```
 This plot shows everything:
 
-```{r CorellMap2, echo=FALSE}
+```{r CorellMap2, echo=FALSE, include=F}
 plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F, grouplev = 0, pval = 0)
 
 ```
@@ -275,7 +279,7 @@ First, EU countries versus others. GBR and the US explain a lot of the variance.
 #ggbiplot
 ggbiplot(PCAres$PCAresults$NOURISHING$PCAres,
          labels = NPI$Data$Aggregated$UnitCode,
-         groups = NPI$Data$Aggregated$Group_EU28)
+         groups = NPI$Data$Aggregated$Group_Region)
 
 
 ```
@@ -296,13 +300,16 @@ ggbiplot(PCAres$PCAresults$NOURISHING$PCAres,
 #Normalisation
 Normalisation is not necessary if it is all on same scale, this is just to simplify the output. Let's try for fun.
 
-We can consider the "minmax", "rank", "prank" (percentile score).
+We can consider the "minmax", "rank", "prank" (percentile score). Below, I simply *100 to get a larger scale.
+
+
 
 ```{r normalise}
-NPI <- normalise(NPI, dset="Raw", ntype="minmax")
+#normalise data by transforming 1 into 100.
 
-##iplotIndDist2(NPI, dsets = c("Raw","Normalised"), 
-#  icodes = "N1", ptype = "Histogram")
+NPI <- normalise(NPI, dset="Raw", ntype="custom", npara = list(custom = function(x) {x*100}))
+
+#NPI <- normalise(NPI, dset="Raw")
 
 ```
 
@@ -320,6 +327,7 @@ NPI <- aggregate(NPI, dset = "Normalised", agtype_bylevel = c("arith_mean", "geo
 
 #Only index numbers after aggegation
 NPI$Data$Aggregated[(ncol(NPI$Data$Aggregated)-10): ncol(NPI$Data$Aggregated)]
+
 ```
 
 ##Results
@@ -380,8 +388,6 @@ iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="mean")
 iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="groupmean", statgroup = "Group_COCREATE", statgroup_name = "CO-CREATE countries") 
 ```
 
-Finally, let's try an interactive chart.
-
 ```{r interactive}
 #resultsDash(NPI)
 ```
@@ -394,7 +400,11 @@ Aaand, make a report for one country:
 #Analysing results
 
 ##Benchmarks
-```{r}
+```{r, include=F}
+#Error in reactable::reactable(., resizable = TRUE, bordered = TRUE, highlight = TRUE,  :   `data` must have at least one column <-- not working properly?
+
+
+
 NPI$Analysis$Normalised$StatTable$Mean %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
 
 MeanBenchmarks <- NPI$Analysis$Raw$StatTable$Mean %>% roundDF () %>% t() %>% as.data.frame()
@@ -570,7 +580,8 @@ rownames(Regions) = rownames(eu_numerical_agg)
 Regions <- as.data.frame(Regions)
 
 #Make the heatmap
-EU28_cluster <- pheatmap::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F, annotation_rows = Regions)
+EU28_cluster <- Normalised
+::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F, annotation_rows = Regions)
 
 #If silent=T <- only dendrodram
 ##EU28_cluster$tree_row %>% as.dendrogram() %>% plot(horiz =F)
