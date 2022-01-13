@@ -56,7 +56,7 @@ There are significant differences in number of policy actions collected per coun
 policydb %>% count(Country, sort=TRUE, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE)
 ```
 In the following table it is evident that there are differences also by policy areas and sub-policy areas. The table is sort-able (e.g by PolicyArea).
-```{r}
+```{r sortable}
 
 policydb %>% count(PolicyArea, SubPArea, sort=F, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE, filterable = TRUE)
 
@@ -180,15 +180,11 @@ framework
 
 
 ## Ranks and maps
-An example of countries implementing N1: Mandatory nutrient lists on packaged food.
-
+An example of countries implementing R1:
 
 ```{r Ranking, echo=FALSE}
-iplotMap(NPI, dset = "Raw", isel = "N1")
+iplotMap(NPI, dset = "Raw", isel = "R1")
 
-
-
-#plotIndDot(NPI, dset="Raw", icode="N1", usel = isCoCREATE, add_stat="median") #not for binary data at all
 ```
 ##Statistics and analysis
 There are collinear indicators and, even worse: significant negative indicator correlations. The latter is undesired due to the nature of aggregation. The indicators should contribute positivley to the aggregation, not the other way around.
@@ -196,6 +192,7 @@ There are collinear indicators and, even worse: significant negative indicator c
 The table (sort by MEAN), indicate which areas have the 'best' coverage. This is I(2)1, N1 and N7 respectively. Multiple variables have low coverage (sort by MEAN), e. g. G5, H4 and R8.
 
 ```{r Stats, warning=FALSE}
+
 NPI <- getStats(NPI, dset="Raw")
 
 NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
@@ -209,27 +206,9 @@ NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TR
 It may be pointless assessing correlations because it is bound to happen with binary variables. 
 
 ```{r Correlations, eval=F, include=F}
-statlist <- getStats(NPI, dset = "Raw", out2="list")
-
-#Example of G5 being negativley correltaed to all other pillars.
-statlist$Correlations[1:5, 1:5]
-
 CorellOverview <- statlist$StatTable[ c("Indicator", "Collinearity", "Neg.Correls")]
 
 CorellOverview
-```
-
-We can also plot maps of correlations. The first plots indicators (benchmarks) against indicators, within each sub policy area (e.g. N or O). Grey is insignificant correlations. Again, considering the data, high correlations are likely. 
-
-```{r CorellMaps, echo=FALSE, include=F}
-#plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F)
-
-```
-This plot shows everything:
-
-```{r CorellMap2, echo=FALSE, include=F}
-plotCorr(NPI, dset = "Raw", aglevs = 1, showvals = F, grouplev = 0, pval = 0)
-
 ```
 
 While indicator level may not be that interesting, the aggregation levels can yield more information. For a sensible aggregation, the levels should harmonise (same way) AND have a correlation of more than 0.3. Multiple of the correlations are less than 0.3 (ref grey zones).
@@ -323,7 +302,7 @@ Possible methods are:
 *Weighted mean ("median") - wont really make sense here tbh
 
 ```{r Aggregation}
-NPI <- aggregate(NPI, dset = "Normalised", agtype_bylevel = c("arith_mean", "geom_mean"))
+NPI <- aggregate(NPI, dset = "Normalised")
 
 #Only index numbers after aggegation
 NPI$Data$Aggregated[(ncol(NPI$Data$Aggregated)-10): ncol(NPI$Data$Aggregated)]
@@ -338,7 +317,8 @@ After managing the data, let's have a look at the output.
 #Rearrange data, output = NULL
 NPI <- getResults(NPI, tab_type = "Summary", out2="COIN")
 
-NPI$Results$SummaryScores %>% head(10)
+NPI$Results$SummaryScores %>% head(10) 
+
 ```
 Here are the top ten performers. UK, followed by USA and Norway. 
 There seems to be quite a lot of variation for the top 15 countries or so, before it evens out after. 
@@ -400,7 +380,7 @@ Aaand, make a report for one country:
 #Analysing results
 
 ##Benchmarks
-```{r, include=F}
+```{r, include=F, ec}
 #Error in reactable::reactable(., resizable = TRUE, bordered = TRUE, highlight = TRUE,  :   `data` must have at least one column <-- not working properly?
 
 
@@ -555,7 +535,6 @@ Aggregates <- Aggregates %>% mutate(Group_EU = case_when(
   UnitName == "ISL" ~ "EU", 
   UnitName == "LIE" ~ "EU",
   UnitName == "CHE" ~ "EU",
-  UnitName == "RUS" ~ "NA",
   TRUE ~ Group_EU)
 )
 
