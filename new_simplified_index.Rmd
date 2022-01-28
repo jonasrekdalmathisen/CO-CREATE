@@ -133,11 +133,9 @@ COINr_SPA <- COINr_SPA %>% mutate(Group_EU = case_when(
   TRUE ~ Group_EU)
 )
 
-COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
-
-
 #only European countries for idnexation
 COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
+
 
 #Consider adding certain variables etc for further analysis (eurostat stuff)
 
@@ -364,6 +362,8 @@ NumericalsOnly2 <- NumericalsOnly %>% roundDF(decimals=1)
 NumericalsOnly2[NumericalsOnly2 < 0.01] <- NA
 NumericalsOnly2[is.na(NumericalsOnly2)] <- ""
 
+
+
 ```
 
 
@@ -406,6 +406,9 @@ trans_NumericalsSuBPOnly <- trans_NumericalsSuBPOnly %>% column_to_rownames("Ben
 SubPAz <- trans_NumericalsSuBPOnly %>% select(PolicyAreaID)
 
 NumericalsSuBPOnly <- trans_NumericalsSuBPOnly %>% select(-PolicyAreaID) %>% t() %>% as.data.frame()
+
+simplified_index_cc <- NumericalsSuBPOnly %>% filter(rownames(NumericalsSuBPOnly) %in% c("Norway", "Poland", "Netherlands", "Portugal", "UK"))
+
 ```
 
 
