@@ -1,0 +1,600 @@
+---
+title: "COINr Trail"
+author: "Jonas Rekdal Mathisen"
+date: "28/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this version, I try to aggregate and play with the policy data to make an index. To do this, I use the COINr package.
+
+```{r Packages}
+#libraries:
+pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse)
+```
+
+#Initialisation
+https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
+
+## Input data
+```{r loadGPI}
+policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
+
+colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics", "BenchmarkID", "PolicyAreaID", "PolicyDim")
+
+policydb <- policydb[-c(1,6)]
+
+country_hierch2 <- policydb %>% count(Country, PolicyAreaID, BenchmarkID)
+
+truef_spa <- country_hierch2 %>% mutate(
+  PolicyActionImplemented = if_else(n > 0, TRUE, FALSE, missing=FALSE)
+)
+
+SPA_level_TF <- truef_spa %>%
+  select("Country", "BenchmarkID","PolicyActionImplemented") %>% 
+  select(c("Country", "BenchmarkID")) %>% distinct() %>%
+  pivot_wider(names_from = "BenchmarkID", values_from = "BenchmarkID") %>%
+  ungroup() %>%
+  mutate(
+    across(.cols = -Country, 
+           ~if_else(!is.na(.), 1, 0)
+    )
+  )
+
+AggHiearchy <- policydb %>% distinct(SubPArea, BenchmarkID, PolicyArea, PolicyAreaID)
+PAreas <- policydb %>% distinct(PolicyArea, PolicyAreaID) #List of PAreas
+SubPas <- policydb %>% distinct(SubPArea, BenchmarkID)
+
+```
+## Descriptive stats of the policy database from WCRF
+
+There are significant differences in number of policy actions collected per country: 
+```{r}
+policydb %>% count(Country, sort=TRUE, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE)
+```
+In the following table it is evident that there are differences also by policy areas and sub-policy areas. The table is sort-able (e.g by PolicyArea).
+```{r sortable}
+
+policydb %>% count(PolicyArea, SubPArea, sort=F, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE, filterable = TRUE)
+
+```
+
+
+## Prepare data for analysis using COINr
+```{r COINbase, include=TRUE}
+COINr_SPA <- SPA_level_TF
+
+COINr_SPA <- filter(COINr_SPA, Country!="Romania, Wallis and Futuna")
+
+names(COINr_SPA)[names(COINr_SPA) == "Country"] <- "UnitName"
+
+
+COINr_SPA <- COINr_SPA %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
+
+#Some values are missing: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna
+
+Missing <- COINr_SPA %>% subset(is.na(UnitCode)) %>% select(UnitName, UnitCode)
+
+#For this exercise these are dropped
+COINr_SPA <- na.omit(COINr_SPA)
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+COINr_SPA <- COINr_SPA %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+COINr_SPA <- na.omit(COINr_SPA)
+
+COINr_SPA <- COINr_SPA %>% mutate(Group_EU = case_when(
+  UnitCode == "NOR" ~ "EU", 
+  UnitCode == "ISL" ~ "EU", 
+  UnitCode == "LIE" ~ "EU",
+  UnitCode == "CHE" ~ "EU",
+  UnitCode == "RUS" ~ "NA", #not part of scan this round
+  TRUE ~ Group_EU)
+)
+
+COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
+
+#Consider adding certain variables etc for further analysis (eurostat stuff)
+
+
+
+IndData <- COINr_SPA %>% mutate_if(is_double,as.integer)
+
+IndData
+
+```
+
+
+## Indicator metadata
+<!-- Required: IndName, IndCode and Direction -->
+
+```{r Metadata}
+IndMeta <- AggHiearchy
+
+colnames(IndMeta) <- c("PolicyArea", "IndName", "IndCode", "Agg_PolicyDimension")
+IndMeta$Direction <- 1 #All indicators got positive direction
+IndMeta$IndWeight <- 1 #All indicators carry the same weight
+
+
+#IndMeta$Agg1_Indicators <- IndMeta$IndCode ##Avventer denne. Blir dobbel uans? 
+
+
+#IndMeta$Agg_PolicyDimension #Samles til en av de tre hovedkategoriene
+
+
+#IndMeta$Agg_PolicyIndex #Alt samles
+
+IndMeta$Agg_PolicyIndex <- "NOURISHING" 
+
+IndMeta <- relocate(IndMeta, Agg_PolicyDimension, .before = Agg_PolicyIndex)
+IndMeta
+``` 
+## Aggregation metadata
+
+```{r AggMeta}
+AggMeta <- PAreas
+
+colnames(AggMeta) <- c("Name", "Code")
+
+AggMeta$AgLevel <- 2
+
+AggMeta$Weight <- 1 #Equal weight for all
+
+AggMeta <- AggMeta %>% add_row(Name="Index", Code="NOURISHING", AgLevel=3, Weight=1)
+
+
+AggMeta
+```
+## Assembling the data
+Combine the IndData, IndMeta and AggMeta into one hierarchical list.
+
+```{r Assembly}
+IndData
+IndMeta
+
+
+NPI <- assemble(IndData = IndData, IndMeta = IndMeta, AggMeta = AggMeta)
+
+
+
+NPI
+```
+
+# Initial visualisation and analysis
+## Structure
+The sunburst plot shows the hierarchical structure and effective weights for the simplified NOURISHING index. Effective weights imply their relative contribution to the aggregated level, even with equal weighting applied. This is most apparent at indicator level: the N (level 2)  has eight indicators contributing 0.0125 each, while in N(2), one indicator contributes 0.033. At sub-index level (N, O, U, R, I, S , H, I, N , G) they are contributing equally at 0.1 each.
+
+```{r Structure}
+framework <- plotframework(NPI)
+framework
+```
+
+
+## Ranks and maps
+An example of countries implementing R1:
+
+```{r Ranking, echo=FALSE}
+iplotMap(NPI, dset = "Raw", isel = "R1")
+
+```
+##Statistics and analysis
+There are collinear indicators and, even worse: significant negative indicator correlations. The latter is undesired due to the nature of aggregation. The indicators should contribute positivley to the aggregation, not the other way around.
+
+The table (sort by MEAN), indicate which areas have the 'best' coverage. This is I(2)1, N1 and N7 respectively. Multiple variables have low coverage (sort by MEAN), e. g. G5, H4 and R8.
+
+```{r Stats, warning=FALSE}
+
+NPI <- getStats(NPI, dset="Raw")
+
+NPI$Analysis$Raw$StatTable %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
+
+```
+
+
+
+#Multivariate analysis 
+##Correlations
+It may be pointless assessing correlations because it is bound to happen with binary variables. 
+
+```{r Correlations, eval=F, include=F}
+CorellOverview <- statlist$StatTable[ c("Indicator", "Collinearity", "Neg.Correls")]
+
+CorellOverview
+```
+
+While indicator level may not be that interesting, the aggregation levels can yield more information. For a sensible aggregation, the levels should harmonise (same way) AND have a correlation of more than 0.3. Multiple of the correlations are less than 0.3 (ref grey zones).
+
+
+```{r CorrelAgg, echo=FALSE}
+NPI <- aggregate(NPI, dset = "Raw") 
+
+plotCorr(NPI, dset="Aggregated", aglevs = c(1,2), showvals = T, flagcolours = T)
+
+```
+
+CronAgg displays a high consistency of the sub-pillars within NOURISHING:
+```{r CorellReliability}
+#The consistency of subpillars within NOURISHING: high reliability.
+CronAgg <- getCronbach(NPI, dset="Aggregated", icodes="NOURISHING", aglev=2)
+CronAgg
+```
+
+## PCA
+A principal component analysis can be used for both dimensionality reduction and exploratory analysis. The following analyses we see that the ten pillars (NOURISHING) translates into ten Principal Components as listed in the table below. 
+
+Using the ten pillars, the PCA show that to explain NOURISHING, we explain 50% of the variance with the first principle component. Is this enough? I am not sure, but we want our variables to explain a significant proportion at least. 
+
+N.B: PCA assumes linearity. The following is used mostly for exploratory analysis. 
+
+```{r PCA}
+NPI <- aggregate(NPI, dset = "Raw")
+                 
+PCAres <- getPCA(NPI, dset="Aggregated", aglev=2, out2="list")
+
+summary(PCAres$PCAresults$NOURISHING$PCAres)
+
+```
+
+The ggbiplot package can tell us more. 
+
+Three groupings are possible per now. Later, I want to include obesity rates (low/med/high).
+
+First, EU countries versus others. GBR and the US explain a lot of the variance. It is a tendency that European countries to slightly better than non-European countries.
+
+```{r PCAplotEU28}
+#Possible groupings for the future: OBESITY rate (low/med/high)
+  #Currently, choose between CO-CREATE countries, regions etc
+
+
+#ggbiplot
+ggbiplot(PCAres$PCAresults$NOURISHING$PCAres,
+         labels = NPI$Data$Aggregated$UnitCode,
+         groups = NPI$Data$Aggregated$Group_Region)
+
+
+```
+The second plot indicate that CO-CREATE countries do slightly better than both EU and non-European countries in general - with the UK being the key driver among all countries
+```{r PCAplotCOCREATE}
+#Possible groupings for the future: OBESITY rate (low/med/high)
+  #Currently, choose between CO-CREATE countries, regions etc
+
+
+#ggbiplot
+ggbiplot(PCAres$PCAresults$NOURISHING$PCAres,
+         labels = NPI$Data$Aggregated$UnitCode,
+         groups = NPI$Data$Aggregated$Group_COCREATE)
+
+
+```
+
+#Normalisation
+Normalisation is not necessary if it is all on same scale, this is just to simplify the output. Let's try for fun.
+
+We can consider the "minmax", "rank", "prank" (percentile score). Below, I simply *100 to get a larger scale.
+
+
+
+```{r normalise}
+#normalise data by transforming 1 into 100.
+
+NPI <- normalise(NPI, dset="Raw", ntype="custom", npara = list(custom = function(x) {x*100}))
+
+#NPI <- normalise(NPI, dset="Raw")
+
+```
+
+#Aggregation
+I will try different aggregation methods. We do not want total compensability because being good in one area should not compensate for implementing less in another area. 
+
+Possible methods are:
+*Geometric and harmonised mean won't work due to zeroes
+*Copeland method ("copeland")
+*Arithmetic mean ("arith_mean")
+*Weighted mean ("median") - wont really make sense here tbh
+
+```{r Aggregation}
+NPI <- aggregate(NPI, dset = "Normalised")
+
+#Only index numbers after aggegation
+NPI$Data$Aggregated[(ncol(NPI$Data$Aggregated)-10): ncol(NPI$Data$Aggregated)]
+
+```
+
+##Results
+After managing the data, let's have a look at the output.
+
+###Tables
+```{r Results}
+#Rearrange data, output = NULL
+NPI <- getResults(NPI, tab_type = "Summary", out2="COIN")
+
+NPI$Results$SummaryScores %>% head(10) 
+
+```
+Here are the top ten performers. UK, followed by USA and Norway. 
+There seems to be quite a lot of variation for the top 15 countries or so, before it evens out after. 
+
+```{r resultstable}
+getResults(NPI, tab_type = "Aggregates") %>%
+  reactable::reactable()
+```
+
+Let's dive into the sub-policy areas: 
+
+```{r spacoloured}
+iplotTable(NPI, dset="Aggregated", aglev = 2)
+```
+
+Maybe we want to find the strengths and weaknesses of a particular country?
+
+```{r Weak}
+#future
+```
+
+### Plots
+
+The full index score. Highlighted countries are CO-CREATE.
+```{r fullindex}
+iplotBar(NPI, dset="Aggregated", usel=isCoCREATE, stack_children =F, aglev = 3)
+```
+
+```{r indexfull}
+iplotMap(NPI, dset="Aggregated", isel="NOURISHING")
+```
+
+Let's continue the greatness of life: radar charts.
+Click to select different countries. Note how all CO-CREATE countries score weak in R, S and U, but strong in N(2), I2 and O.
+
+We should perform PCA/grouping analyses to see if different dimensions are coverd by countries or not. 
+
+Note how weak the median is for all countries lolz. We should probably limit ourselves to Europe.
+
+```{r radar_all}
+iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="mean") 
+```
+
+
+```{r radar_COC}
+#GROUP: EU28, COCREATE, REGION
+iplotRadar(NPI, dset ="Aggregated", usel = isCoCREATE, aglev=2, addstat="groupmean", statgroup = "Group_COCREATE", statgroup_name = "CO-CREATE countries") 
+```
+
+```{r interactive}
+#resultsDash(NPI)
+```
+
+Aaand, make a report for one country:
+```{r unitrep}
+#getUnitReport(NPI, usel="GBR", out_type = ".pdf")
+```
+
+#Analysing results
+
+##Benchmarks
+```{r, include=F, ec}
+#Error in reactable::reactable(., resizable = TRUE, bordered = TRUE, highlight = TRUE,  :   `data` must have at least one column <-- not working properly?
+
+
+
+NPI$Analysis$Normalised$StatTable$Mean %>% roundDF() %>% reactable::reactable(resizable = TRUE, bordered = TRUE, highlight = TRUE, defaultPageSize = 10)
+
+MeanBenchmarks <- NPI$Analysis$Raw$StatTable$Mean %>% roundDF () %>% t() %>% as.data.frame()
+colnames(MeanBenchmarks) <- c("Mean")
+
+Benchmark_cluster <- pheatmap::pheatmap(MeanBenchmarks, cluster_cols = F, main="Clustering of benchmarks by mean", cutree_rows=7, silent=F)
+
+```
+
+
+##Get data on obesity
+```{r GetEurostat}
+library(stringr)
+
+hlth_ehis_bm1e <- eurostat::get_eurostat("hlth_ehis_bm1e")
+
+BMI_cat <- hlth_ehis_bm1e %>% select(bmi) %>% distinct()
+
+hlth_ehis_bm1e$year <- str_sub(hlth_ehis_bm1e$time,1,4)
+
+BMI_euro <- hlth_ehis_bm1e %>% filter(sex=="T" & age=="TOTAL" & isced11=="TOTAL" & bmi=="BMI_GE30" & year=="2019") %>% select(geo, values)
+
+BMI_euro <- BMI_euro %>% mutate(geo2= countrycode(sourcevar = geo, origin="eurostat", destination="iso3c")) %>% select(geo2, values)
+
+head(BMI_euro)
+
+BMI_euro %>% reactable::reactable()
+
+```
+
+#Combine obesity data with index
+```{r Indexjoin}
+IndexScore_geo <- getResults(NPI, tab_type = "Summ") %>% select(UnitCode, NOURISHING)
+
+IndexScore_geo <- left_join(IndexScore_geo, BMI_euro, by = c("UnitCode" ="geo2"))
+
+#Add some missing data for this exercise
+
+IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="USA", 36))
+
+IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="GBR", 28))
+
+IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="MYS", 19.7))
+
+#colnames(IndexScore_geo) <- c("UnitCode", "NOURSHING", "% Obese")
+IndexScore_geo %>% reactable::reactable()
+```
+
+
+Creating a fitted line we find that there is a positive relationship between higher implementation of nutrition policies and obesity rates. 
+
+```{r regline}
+regline <- IndexScore_geo %>% filter(!is.na(values)) %>% lm(NOURISHING ~ values,.) %>% fitted.values()
+
+print("Fitted line")
+mean(regline)
+
+corell <- cor.test(IndexScore_geo$NOURISHING, IndexScore_geo$values, method = "pearson")
+corell
+
+x <- IndexScore_geo$NOURISHING
+y <- IndexScore_geo$values
+
+x
+```
+
+Create a scatterplot with NOURISHING score (y) and obesity rate (total population):
+
+```{r plotit2}
+
+meanNourish <- mean(IndexScore_geo$NOURISHING)
+
+plot <- IndexScore_geo %>% filter(!is.na(values)) %>%
+  plotly::plot_ly(x=~values, y= ~NOURISHING, mode="markers", text =~UnitCode) %>%
+  plotly::add_markers(y= ~NOURISHING) %>%
+  plotly::add_trace(x=~values, y=regline, mode="lines") %>%
+  plotly::add_lines(y=meanNourish) %>%
+  plotly::layout(showlegend=F) %>%
+  plotly::add_text(textposition="top right")
+
+
+plot
+```
+
+##SSB consumption versus index
+
+Getting data from Eurostat
+```{r eurostatx, include=F}
+hlth_ehis_fv7e <- eurostat::get_eurostat("hlth_ehis_fv7e")
+
+hlth_ehis_fv7e
+
+SSB_cat <- hlth_ehis_fv7e %>% select(frequenc) %>% distinct()
+
+hlth_ehis_fv7e$year <- str_sub(hlth_ehis_fv7e$time,1,4)
+
+SSB_euro <- hlth_ehis_fv7e %>% filter(sex=="T" & age=="TOTAL" & isced11=="TOTAL" & frequenc=="GE1D" & year=="2019") %>% select(geo, values)
+
+SSB_euro <- SSB_euro %>% mutate(geo2= countrycode(sourcevar = geo, origin="eurostat", destination="iso3c")) %>% select(geo2, values)
+
+head(SSB_euro)
+
+SSB_euro %>% reactable::reactable()
+```
+Mapping a plot using U3: Use economic tools to address food affordability and purchase incentives
+
+```{r joindatx, include=F}
+IndexScore_U <- getResults(NPI, tab_type = "Aggregates") %>% select(UnitCode, U)
+
+IndexScore_U <- left_join(IndexScore_U, BMI_euro, by = c("UnitCode" ="geo2"))
+
+#Add some missing data for this exercise (not found)
+
+#IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="USA", 36))
+
+#IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="GBR", 28))
+
+#IndexScore_geo <- IndexScore_geo %>% mutate(values=replace(values, UnitCode=="MYS", 19.7))
+
+colnames(IndexScore_geo) <- c("UnitCode", "NOURSHING", "SSB consumption at least once a day")
+IndexScore_U %>% reactable::reactable()
+```
+
+```{r reglineSSB, include=F}
+reglineU <- IndexScore_U %>% filter(!is.na(values)) %>% lm(U ~ values,.) %>% fitted.values()
+
+mean(reglineU)
+
+corell <- cor.test(IndexScore_U$U, IndexScore_U$values, method = "pearson")
+corell
+
+```
+
+#Cluster analysis
+##EU28 + NOR
+```{r}
+#Prepare data
+Aggregates <- getResults(NPI, tab_type = "Aggregates") 
+
+Aggregates <- Aggregates %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+Aggregates <- Aggregates %>% mutate(Group_EU = case_when(
+  UnitName == "NOR" ~ "EU", 
+  UnitName == "ISL" ~ "EU", 
+  UnitName == "LIE" ~ "EU",
+  UnitName == "CHE" ~ "EU",
+  TRUE ~ Group_EU)
+)
+
+```
+
+Prepare for EU analysis, highlighting COCREATE countries
+```{r eu28nor}
+eu_numerical_agg <- Aggregates
+
+rownames(eu_numerical_agg) <- sapply(Aggregates$UnitName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+#Remove any character text
+eu_numerical_agg <- eu_numerical_agg %>% filter(Group_EU=="EU") %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU, -Group_COCREATE, -Group_Region, -Group_Continent)
+
+#Separate df to highlight co-create countries in data
+COCREATE_cntr <- Aggregates %>% filter(Group_EU=="EU") %>% select(Group_COCREATE)  
+rownames(COCREATE_cntr) = rownames(eu_numerical_agg) 
+
+#Separate df to highlight EU regions
+Regions <- Aggregates %>% filter(Group_EU=="EU") %>%  select(Group_Region)  
+rownames(Regions) = rownames(eu_numerical_agg) 
+Regions <- as.data.frame(Regions)
+
+#Make the heatmap
+EU28_cluster <- Normalised
+::pheatmap(eu_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, silent=F, annotation_rows = Regions)
+
+#If silent=T <- only dendrodram
+##EU28_cluster$tree_row %>% as.dendrogram() %>% plot(horiz =F)
+
+
+#https://davetang.org/muse/2018/05/15/making-a-heatmap-in-r-with-the-pheatmap-package/ Save fig as pic
+```
+
+#Cluster analysis all countries
+
+Citation: https://towardsdatascience.com/pheatmap-draws-pretty-heatmaps-483dab9a3cc
+
+
+```{r all, include=FALSE, eval=FALSE}
+
+all_numerical_agg <- Aggregates
+
+rownames(all_numerical_agg) <- sapply(Aggregates$UnitName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+all_numerical_agg <- all_numerical_agg %>% select(-Rank, -NOURISHING, -UnitName, -UnitCode, -Group_EU28, -Group_COCREATE, -Group_Region)
+
+#Separate df to highlight co-create countries in data
+Regions <- Aggregates %>% select(Group_Region)  
+
+rownames(Regions) = rownames(all_numerical_agg) 
+
+#Make the heatmap
+
+
+all_cluster <- pheatmap::pheatmap(all_numerical_agg, cluster_cols = T, main="Clustering of countries by sub-policy area", cutree_rows=5, cutree_cols=3, annotation_row=Group_Region)
+
+
+
+
+#https://www.biostars.org/p/287512/ Try this to make the dendrograms only
+
+```
