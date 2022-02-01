@@ -1,19 +1,32 @@
-#Benchmark_reduced
+---
+title: "Missing analysis"
+author: "Jonas Rekdal Mathisen"
+date: "31/01/2022"
+output: html_document
+---
 
-Benchmark_raw %>% head(5) %>% reactable(compact=T)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-#Include only if replace zereos
+
+```{r}
 countries_f <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
 Benchmark_raw <- Benchmark_raw %>% mutate(across(.cols = all_of(numericals), ~case_when(is.na(.) ~ NA, TRUE ~ .)))
 Benchmark_raw <- Benchmark_raw %>% mutate(across(.cols = all_of(countries_f), ~case_when(is.na(.) ~ NA, TRUE ~ .)))
 Benchmark_raw <- Benchmark_raw %>% mutate(across(.cols = all_of(countries_f), ~case_when(is.na(.) ~ NA, TRUE ~ .)))
-knitr::opts_chunk$set(echo = TRUE)
+```
 
 #libraries:
+```{r}
 pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse, RColorBrewer)
 library(readxl, suppressMessages(T))
+```
 
 #Import the benchmarking results to R
+
+```{r}
+
 Benchmark_raw <- read_excel("benchmark1301.xlsx",
                             sheet = "All_countries_format")
 #Add PD code
@@ -30,9 +43,10 @@ Benchmark_raw[Benchmark_raw == ""] <- NA # eller NA
 Benchmark_raw <- Benchmark_raw %>%
   filter(is.na(Indicator_type) | Indicator_type != "M&E" & Indicator_type != "Implementation")
 
-#Benchmark_reduced
-Benchmark_raw %>% head(5) %>% reactable(compact=T)
+```
 
+
+```{r}
 #Include only if replace zereos
 countries_f <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
 
@@ -47,61 +61,92 @@ colnames(IndData_NPI_F) <- c("UniqueID", "Norway", "Poland", "United Kingdom", "
 
 #List of indicators
 Indicators <- c(t(IndData_NPI_F$UniqueID))
+```
+
+#Go to COIN
+#Fix the index
+```{r}
 
 #Transpose the table, add column names
 IndData_NPI_F <- data.frame(t(IndData_NPI_F[-1]))
 colnames(IndData_NPI_F) <- Indicators
 
-
-#Go to COIN
-#Fix the index
-
 IndData_NPI_F$UnitName <- rownames(IndData_NPI_F)
 row.names(IndData_NPI_F) <- NULL
+
 #Make unit codes
 IndData_NPI_F <- IndData_NPI_F %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
 isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
 #Continue adding groups for countries
 IndData_NPI_F <- IndData_NPI_F %>% mutate(
   Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"),
   Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
   Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"),
   Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
 #Potential groups: GDP, inequality etc, obesity prevalence etc.
 IndData_NPI_F <- IndData_NPI_F %>% mutate_if(is_double,as.integer)
 AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter", "PD_code") %>% distinct()
 colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA", "Agg_PolDim")
+
+
+```
+
+
+```{r}
 #Select countries benchmarked and indicator ID only
 IndMeta_NPI_f <- Benchmark_raw %>% select(matches("final_numeric$|UniqueID$|Indicator name$|Max_scale$"))
+
+```
+
 #ADD UNITS OF THE INDICATOR (INDUNIT) TO ORIGINAL EXCEL
 #Assign proper names
+```{r}
 colnames(IndMeta_NPI_f) <- c("IndCode", "IndName", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands", "Target")
+
 IndMeta_NPI_f$Direction <- 1 #All indicators got positive direction
+
 IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
+
 IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
+
 IndMeta_NPI_f$Agg_Index <- "NOURISHING"
+
+
 #AggMeta <- Benchmark_raw %>% select("Policy dimension", "Policy area", "Policy letter", "Sub-policy area", "Benchmark ID") %>%
 #SubPA = 1
+
 SubPas <- Benchmark_raw %>% select("Sub-policy area", "Benchmark ID") %>% distinct()
 colnames(SubPas) <- c("Name", "Code")
 SubPas$AgLevel = 2
+
 #PA = 2
 PAreas <- Benchmark_raw %>% select("Policy area", "Policy letter") %>% distinct()
 colnames(PAreas) <- c("Name", "Code")
 PAreas$AgLevel = 3
+
 #PD = 3
 PD <- Benchmark_raw %>% select("Policy dimension", "PD_code") %>% distinct()
 colnames(PD) <- c("Name", "Code")
 PD$AgLevel = 4
+
 #Merge the three aggregation levels
 AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas, PD))
 AggMeta_NPI_f$Weight = 1
+
 #INDEX = 4
 AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=5, Weight=1)
 NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f)
 framework <- plotframework(NPI_f)
 framework
+```
+
+
+
 #Kunne man hatt e.g. et LAND i midten? De som er N/A kan gråes ut. E.g H7 -> Nei = Grå. Om alle i FoodSyst=0, blir alt der grått etc.
+
+```{r}
 NPI_f <- checkData(NPI_f, dset="Raw")
 NPI_f$Analysis$Raw$MissDatSummary %>% roundDF(1) %>% reactable(compact=T)
 #Colour scheme
@@ -131,15 +176,27 @@ reactable(
     minWidth = 50
   )
 )
+```
+
 #Retrieve the 0.0 indicators only.
+```{r}
 BenchmarkYes <- NPI_f$Data$Raw %>% column_to_rownames("UnitCode") %>% select(contains(".0.0"))
+```
+
+
+
+
 #Missing benchmarks values (not OK)
+```{r}
 missing_bench <- t(BenchmarkYes)
 missing_bench <- missing_bench[rowSums(is.na(missing_bench)) > 0,]
 missing_bench %>% reactable()
 NPI_f <- normalise(NPI_f, dset="Raw", ntype="prank")
 NPI_f$Data$Normalised %>% reactable(compact=T)
 NPI_f$Data$Raw %>% reactable(compact=T)
+```
+
+
 #Two options: copeland OR arith_mean.
 NPI_f <- aggregate(NPI_f, dset="Normalised", avail_limit = 90) #arith_mean standard
 getResults(NPI_f, tab_type = "Aggregates") %>% reactable()
