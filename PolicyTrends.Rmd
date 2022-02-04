@@ -1,0 +1,137 @@
+---
+title: "ImplementationOfPoliciesAcrossEurope"
+author: "Jonas Rekdal Mathisen"
+date: "03/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(reactable, tidyverse, readxl, lubridate, timelineS)
+```
+
+# Introduction
+Moving beyond the existing, implemented policy actions across Europe there are multiple ways ahead. For a policy to work it needs time to be implemented and funding mechanisms. To assess policies, it is important to monitor and evaluate these efforts. The aim of this analysis is to make a trend line for specific countries and identify the strength of policies based on monitoring, evaluation and funding.
+
+
+# Data
+The data used for this analysis is unavailable to the public. WCRF collects a wide range of data that fits the aim of this paper. 
+
+Limitations to the analysis is missing data in crucial elements and the collection of only implemented policies. The latter meaning that policies that have expired is not included, even if it was active for multiple years and may have had an impact.
+
+The following analysis will be exploratory. The table below show an outline of the data structure and some observations.
+
+```{r}
+policydbTrends <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\Copy of Comprehensive scan-Dec2021.xlsx", sheet = "Sheet1") 
+
+policydbTrends <- policydbTrends %>% select(1:15)
+
+head(policydbTrends) %>% reactable(compact=T)
+```
+
+#Some minor edits to ensure consistency
+```{r}
+#policydbTrends <- policydbTrends %>% mutate(`NOURISHING LETTER` = str_sub(policydbTrends$`NOURISHING LETTER`, 1, 1))
+
+policydbTrends$`NOURISHING LETTER` <- toupper(policydbTrends$`NOURISHING LETTER`)
+
+
+policydbTrends$timezone <- as.POSIXct(policydbTrends$timezone)
+
+head(policydbTrends)
+
+                                          
+
+```
+
+# Total NA
+
+Years missing (TRUE)
+```{r}
+table(is.na(policydbTrends$`IMPLEMENTATION YEAR`))
+
+na.remo
+```
+Mandatory missing
+```{r}
+table(is.na(policydbTrends$`TYPE OF POLICY (Mandatory/Voluntary)`))
+
+```
+
+Monitoring and eval missing
+```{r}
+table(is.na(policydbTrends$`Monitoring & Evaluation`))
+
+```
+
+Funding missing
+```{r}
+table(is.na(policydbTrends$Funding))
+
+```
+
+Enforcement missing
+```{r}
+table(is.na(policydbTrends$Enforcement))
+
+```
+
+
+# Descriptive
+
+The number of policy action per country:
+```{r}
+policydbTrends %>% count(COUNTRY, sort=TRUE, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE)
+```
+The number of policy actions by country and NOURISHING letter.
+
+```{r}
+policydbTrends %>% count(COUNTRY, `NOURISHING LETTER`) %>% reactable::reactable(resizable = TRUE, bordered = TRUE, groupBy = "NOURISHING LETTER")
+```
+
+
+# Time of Implemented policies
+Median time of implementation, across all countries.
+```{r}
+policydbTrends %>% group_by(`NOURISHING LETTER`) %>% summarise_at(vars(`IMPLEMENTATION YEAR`), na.rm=T, list("Median year implemented" = median)) %>% reactable(compact=T)
+                                                   
+```
+
+
+```{r}
+policydbTrends %>% group_by(COUNTRY, `NOURISHING LETTER`) %>% summarise_at(vars(`IMPLEMENTATION YEAR`), na.rm=T, list("Median year implemented" = median)) %>% reactable(compact=T)
+                                                   
+```
+
+## CO-CREATE countries as case-study
+
+```{r}
+CC <- policydbTrends %>% filter(COUNTRY== c("Norway", "Portugal", "UK", "Netherlands"))
+
+head(CC)
+```
+
+
+
+## Case of Norway
+
+```{r}
+Norway <- policydbTrends %>% 
+
+Norway %>% count(`NOURISHING LETTER`, sort=T) %>% reactable()
+
+```
+
+
+27 out of 33 policies have time stamps. The missing items are removed from analysis. The average implementation time is 2009. Note, one policy was implemented in 1922.
+
+Median implementation year of policies
+```{r}
+
+Norway_time %>% group_by(`NOURISHING LETTER`) %>% summarise_at(vars(`IMPLEMENTATION YEAR`), list(name= median))
+
+
+```
+
+
