@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-pacman::p_load(reactable, tidyverse, readxl, lubridate, timelineS)
+pacman::p_load(reactable, tidyverse, readxl, lubridate, timelineS, ggplot2)
 ```
 
 # Introduction
@@ -50,8 +50,6 @@ head(policydbTrends)
 Years missing (TRUE)
 ```{r}
 table(is.na(policydbTrends$`IMPLEMENTATION YEAR`))
-
-na.remo
 ```
 Mandatory missing
 ```{r}
@@ -117,7 +115,7 @@ head(CC)
 ## Case of Norway
 
 ```{r}
-Norway <- policydbTrends %>% 
+Norway <- policydbTrend 
 
 Norway %>% count(`NOURISHING LETTER`, sort=T) %>% reactable()
 
@@ -129,7 +127,34 @@ Norway %>% count(`NOURISHING LETTER`, sort=T) %>% reactable()
 Median implementation year of policies
 ```{r}
 
-Norway_time %>% group_by(`NOURISHING LETTER`) %>% summarise_at(vars(`IMPLEMENTATION YEAR`), list(name= median))
+Norway_time %>% group_by(`NOURISHING LETTER`) %>% summarise_at(vars(`IMPLEMENTATION YEAR`), list(name= median)) %>% reactable()
+
+
+```
+
+# Timeline  with ggplot
+
+```{r}
+NOURISHING_PAs <- policydbTrends$`NOURISHING LETTER` %>% unique() 
+
+PA <- c("N1", "O", "U", "R", "I1", "S", "H", "I2", "N2", "G")
+
+PA_colour <- c("#0070C0", "#00B050", "#FFC000", "#C00000", "#2748b4", "#365509", "#7bf8df", "#1654ea", "#585bcd", "#3b9d3f")
+
+Factorz <- factor(Norway_time$`NOURISHING LETTER`, levels=NOURISHING_PAs, ordered=T)
+
+```
+
+```{r}
+Norway_time$end <- today()
+
+```
+
+```{r}
+plot_timeline(Norway_time$`POLICY IDENTIFIER`, Norway_time$timezone, Norway_time$end, group = Factorz, title="Running times of polices in Norway", subtitle="Policy", interactive = F)
+
+
+Norway_time
 
 
 ```
