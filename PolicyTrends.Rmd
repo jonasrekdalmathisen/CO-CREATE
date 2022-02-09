@@ -151,7 +151,7 @@ Norway_time$end <- today()
 ```
 
 ```{r}
-plot_timeline(Norway_time$`POLICY IDENTIFIER`, Norway_time$timezone, Norway_time$end, group = Factorz, title="Running times of polices in Norway", subtitle="Policy", interactive = F)
+plot_timeline(Norway_time$`POLICY IDENTIFIER`, Norway_time$timezone, Norway_time$end, group = Factorz, title="Running times of polices in Norway", subtitle="Policy", interactive = T)
 
 
 Norway_time
