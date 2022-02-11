@@ -47,10 +47,16 @@ Benchmark_raw <- read_excel("benchmark1301.xlsx",
 numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
 
 
+Benchmark_raw <- Benchmark_raw %>% 
+  mutate(
+    across(where(is.numeric), ~replace_na(.x, 0))
+  )
 
-#Remove Unsure (99) from dataset 
-Benchmark_raw[Benchmark_raw == 99] <- NA
-Benchmark_raw[Benchmark_raw == ""] <- NA # eller NA
+Benchmark_raw <- Benchmark_raw %>% 
+  mutate(
+    across(where(is.numeric), ~ replace(.x, 99, 0))
+  )
+
 
 Benchmark_raw <- Benchmark_raw %>% 
   filter(is.na(Indicator_type) | Indicator_type != "M&E" & Indicator_type != "Implementation")
@@ -383,6 +389,8 @@ BenchmarkYes
 
 ## Normalisation
 ```{r}
+NPI_f <- normalise(NPI_f, dset="")
+
 
 NPI_f <- normalise(NPI_f, dset="Raw", ntype="prank")
 
@@ -390,9 +398,62 @@ NPI_f$Data$Normalised %>% reactable(compact=T)
 
 ```
 
-```{r}
-NPI_f$Data$Raw %>% reactable(compact=T)
+```{r, eval=F, include=F}
+#I added the following function to the R tool 
+trace(normalise, edit = T)
 
+
+    else if (ntype == "percentOftarg") {
+      if (is.data.frame(df)) {
+        dfn <- purrr::modify2(df, COIN$Input$IndMeta$Target, 
+          ~{
+            (.x/.y)
+          })
+        dfn[dfn > 1] <- 1
+      }
+      else {
+        dfn <- (df/COIN$Input$IndMeta$Target[ii])
+        dfn[dfn > 1] <- 1
+      }
+    }
+```
+
+
+<!-- Alternativ normalisering: prosent -->
+```{r}
+NPI_f <- normalise(NPI_f, dset="Raw", ntype="percentOftarg")
+```
+
+
+```{r}
+NPI_f$Data$Normalised
+
+```
+
+# Aggregation
+
+```{r}
+#Simple averages of percent
+NPI_f <- aggregate(NPI_f, dset="Normalised", agtype_bylevel = c("arith_mean", "harm_mean", "harm_mean"), avail_limit = 0.8)
+```
+
+
+```{r}
+#Results
+getResults(NPI_f, tab_type = "Aggregates")
+write.csv(perc, file="PercCalcMean.csv", row.names=T)
+#Note how this aggregation technique uses averages and not the full sum!! 
+```
+
+Example of calculation of N:
+```{r}
+
+N_calc1 <- mean(0.61, 0.92, 0.33, 0.5, 0.93, 0,52, NA)
+```
+```{r}
+iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 2, addstat = "median")
+
+```
 ```
 
 
@@ -400,34 +461,33 @@ NPI_f$Data$Raw %>% reactable(compact=T)
 This is the raw aggregation levels. Note how low the scores are, even without normalising.
 ```{r}
 #Two options: copeland OR arith_mean.
+SumFunction <- function(x,w) (sum(x, na.rm = T)*1)
 
-NPI_f <- aggregate(NPI_f, dset="Normalised") #arith_mean standard
-  
+NPI_f <- aggregate(NPI_f, dset="Raw", agtype="custom", agfunc = SumFunction) 
+
+#TryNewDataFrame
+## Identifisere hva de deler på
+## Lage ny dataframe med riktig antall columns hvor max score finnes.
+
+
+#NPI_f$Input$IndMeta$Target
+
+
 
 getResults(NPI_f, tab_type = "Aggregates") %>% reactable()
 
+write.csv(test, file="TargetScores.csv", row.names=T)
 
-iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 2, addstat = "median")
+write
+```
 
 
+```{r}
+iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 3, addstat = "median")
 ```
 
 ```{r}
-NPI_f <- aggregate(NPI_f, dset="Raw",agtype = "copeland") #arith_mean standard
-
-getResults(NPI_f, tab_type = "Aggregates") %>% head() %>% reactable()
-
-```
-## Visualise
-
-```{r}
-iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 3, addstat = "mean")
-
-
+getResults(NPI_f, tab_type = "Aggregates", use = "ranks") %>% reactable()
 ```
 
-# Cleaning function
-We need to create a function that cleans up the flawed aggregation. If a 0.0 indicator says NO, the other indicators should be treated as such.
-```{r}
-```
 
