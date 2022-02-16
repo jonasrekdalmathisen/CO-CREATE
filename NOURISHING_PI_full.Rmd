@@ -225,7 +225,7 @@ MissingWNAS <- NPI_f$Analysis$Raw$MissDatSummary %>% roundDF(1)
 
 write.csv(MissingWNAS, "NA MissingAnalysis.csv")
 
-
+MissingWNAS
 
 #%>% reactable(compact=T)
 ```
@@ -261,6 +261,8 @@ The same grouping can be done by policy area:
 Number of indicators filled / total indicators possible.
 
 ```{r}
+
+
 supb_table <- NPI_f$Analysis$Raw$MissDatByGroup %>% select(UnitCode, N, O, U, R, I, S, H, "I(2)", "N(2)", G) %>% roundDF(1)
 
 reactable(
@@ -411,6 +413,10 @@ trace(normalise, edit = T)
         dfn[dfn > 1] <- 1
       }
     }
+
+  
+trace(regen, edit=T)
+  avail_limit = COINold$Method$aggregate$avail_limit,
 ```
 
 

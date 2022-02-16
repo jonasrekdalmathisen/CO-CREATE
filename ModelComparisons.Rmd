@@ -188,32 +188,39 @@ This is the full model as envisoned earlier in the project.
 ```{r}
 NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f)
 ```
+
+
 # Models
 ## 1a: Proportions, w/NA - FULL model 
 This includes all variables and no changes to the data at all. 
 
+Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
+
+
 ```{r}
 NPI_f <- normalise(NPI_f, dset="Raw", ntype="percentOftarg")
-```
 
-```{r}
-NPI_f <- checkData(NPI_f, dset="Aggregated")
-```
-
-
-```{r}
 #Simple averages of percent
 NPI_f <- aggregate(NPI_f, dset="Normalised")
-```
 
-
-```{r}
 #Results
 getResults(NPI_f, tab_type = "Aggregates")
 ```
 
+```{r}
+NPI_f <- checkData(NPI_f, dset="Raw")
+NPI_f$Analysis$Raw$MissDatSummary
+
+NPI_f$Analysis$Raw$MissDatSummary$N_missing %>% mean()
+
+
+
+Benchmark_raw
+```
 
 ## Model 1b: Proportions, strict model (DQ >0.7)
+
+Number of indicators: `r StrictModel$Input$IndMeta %>% count() %>% as_vector()`
 ```{r}
 StrictModel <- NPI_f #Copy the full model
 
@@ -221,14 +228,30 @@ StrictModel <- NPI_f #Copy the full model
 StrictModel$Method$aggregate$avail_limit <- 0.7
 
 StrictModel <- regen(StrictModel, quietly = T)
-```
 
-```{r}
 getResults(StrictModel, tab_type = "Aggs")
 ```
 
-## Model 2: Z-score
+## Model 2: Implementation + M&E excluded
+
+Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
 ```{r}
+list_ME <- Benchmark_raw %>% 
+  filter(Indicator_type == "M&E") %>% select(UniqueID) %>% as_vector()
+
+list_ME
+
+ME_exc <- NPI_f
+
+#Only M&E excluded indicators included
+ME_exc$Method$assemble$exclude <- c(list_ME)
+
+#Apply strict model witout M&E to assess change
+#ME_exc$Method$aggregate$avail_limit <- 0.7
+
+ME_exc <- regen(ME_exc, quietly=F)
+
+getResults(ME_exc, tab_type = "Aggregates") %>% reactable(compact=T)
 
 ```
 
@@ -236,8 +259,6 @@ getResults(StrictModel, tab_type = "Aggs")
 ```{r}
 list_implementation <- Benchmark_raw %>% 
   filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
-
-list_implementation
 
 PresenceYN <- NPI_f
 
@@ -259,10 +280,55 @@ PresenceYN <- regen(PresenceYN, quietly=F)
 getResults(PresenceYN, tab_type = "Aggregates") %>% reactable(compact=T)
 ```
 
+Model 5: z-score, w/o M&E
+
+```{r}
+z_score <- NPI_f
+
+#Only M&E excluded indicators included
+
+z_score$Method$normalise$ntype <- "zscore"
+
+#Apply strict model witout M&E to assess change
+
+z_score <- regen(z_score, quietly=F)
+
+#getResults(z_score, tab_type = "Aggregates" %>% reactable(compact=T)
+
+z_scoreResults <- getResults(z_score, tab_type = "Aggregates", out2 = "df")
+
+#Only transform certain elements in the table
+vars <- names(z_scoreResults)[c(-1:-3)]
+
+#Run a loop. Thanks to Y. Kameleri for code at NIPH.
+
+library(data.table)
+
+setDT(z_scoreResults)
+
+for (i in vars){
+  z_scoreResults[, (i) := round(pnorm(get(i))*100,0)]
+}
+
+
+z_scoreResults
+
+```
+
 
 ```{r}
 # "StrictModel" can't be included due to N/A values. No ranking was constructed. 
 compTable(NPI_f, PresenceYN, dset = "Aggregated", isel="NOURISHING")
+
+
+ComparedCOINs <- compTableMulti(list(NPI_f, StrictModel, ME_exc, PresenceYN, z_score), dset = "Aggregated", isel = "NOURISHING") %>% as.data.frame()
+
+colnames(ComparedCOINs) <- c("UnitCode", "UnitName","Full", "Strict", "ME exc", "PresenceYN", "Zscore")
+
+
+ComparedCOINs
+
+#ME_exc + StrictModel 
 ```
 
 
