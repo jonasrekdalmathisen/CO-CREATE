@@ -47,21 +47,20 @@ Benchmark_raw <- read_excel("benchmark1301.xlsx",
 numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
 
 
-Benchmark_raw <- Benchmark_raw %>% 
-  mutate(
-    across(where(is.numeric), ~replace_na(.x, 0))
-  )
+# Benchmark_raw <- Benchmark_raw %>% 
+#    mutate(
+#      across(where(is.numeric), ~replace_na(.x, 0))
+#    )
 
 Benchmark_raw <- Benchmark_raw %>% 
   mutate(
-    across(where(is.numeric), ~ replace(.x, 99, 0))
+    across(where(is.numeric), ~ replace(.x, 99, NA))
   )
 
 
 Benchmark_raw <- Benchmark_raw %>% 
   filter(is.na(Indicator_type) | Indicator_type != "M&E" & Indicator_type != "Implementation")
 
-#Benchmark_reduced
 Benchmark_raw %>% head(5) %>% reactable(compact=T)
 
 ```
@@ -219,7 +218,16 @@ The PrcNonZero indicate another interesting finding. A high number of zeroes wou
 ```{r}
 NPI_f <- checkData(NPI_f, dset="Raw")
 
-NPI_f$Analysis$Raw$MissDatSummary %>% roundDF(1) %>% reactable(compact=T)
+
+
+
+MissingWNAS <- NPI_f$Analysis$Raw$MissDatSummary %>% roundDF(1) 
+
+write.csv(MissingWNAS, "NA MissingAnalysis.csv")
+
+
+
+#%>% reactable(compact=T)
 ```
 ##Overall NOURISHING
 ```{r}
@@ -385,27 +393,14 @@ BenchmarkYes
 
 # COINr continuation
 
-
-
-## Normalisation
-```{r}
-NPI_f <- normalise(NPI_f, dset="")
-
-
-NPI_f <- normalise(NPI_f, dset="Raw", ntype="prank")
-
-NPI_f$Data$Normalised %>% reactable(compact=T)
-
-```
-
 ```{r, eval=F, include=F}
-#I added the following function to the R tool 
+#I added the following function to the R tool
 trace(normalise, edit = T)
 
 
     else if (ntype == "percentOftarg") {
       if (is.data.frame(df)) {
-        dfn <- purrr::modify2(df, COIN$Input$IndMeta$Target, 
+        dfn <- purrr::modify2(df, COIN$Input$IndMeta$Target,
           ~{
             (.x/.y)
           })
@@ -434,14 +429,14 @@ NPI_f$Data$Normalised
 
 ```{r}
 #Simple averages of percent
-NPI_f <- aggregate(NPI_f, dset="Normalised", agtype_bylevel = c("arith_mean", "harm_mean", "harm_mean"), avail_limit = 0.8)
+NPI_f <- aggregate(NPI_f, dset="Normalised", agtype_bylevel = c("arith_mean", "harm_mean", "harm_mean"), avail_limit = 0.7, )
 ```
 
 
 ```{r}
 #Results
-getResults(NPI_f, tab_type = "Aggregates")
-write.csv(perc, file="PercCalcMean.csv", row.names=T)
+perc <- getResults(NPI_f, tab_type = "Aggregates")
+write.csv(perc, file="PercCalcMean_dataavail.csv", row.names=T)
 #Note how this aggregation technique uses averages and not the full sum!! 
 ```
 
@@ -453,7 +448,6 @@ N_calc1 <- mean(0.61, 0.92, 0.33, 0.5, 0.93, 0,52, NA)
 ```{r}
 iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 2, addstat = "median")
 
-```
 ```
 
 
@@ -489,5 +483,8 @@ iplotRadar(NPI_f, dset = "Aggregated", usel = isCoCREATE, aglev = 3, addstat = "
 ```{r}
 getResults(NPI_f, tab_type = "Aggregates", use = "ranks") %>% reactable()
 ```
+
+
+
 
 
