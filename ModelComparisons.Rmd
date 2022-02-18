@@ -276,6 +276,13 @@ PresenceYN <- regen(PresenceYN, quietly=F)
 
 ```
 ```{r}
+PresenceYN <- checkData(PresenceYN, dset="Raw")
+
+PresenceYN$Analysis$Raw$MissDatSummary
+```
+
+
+```{r}
 #Results
 getResults(PresenceYN, tab_type = "Aggregates") %>% reactable(compact=T)
 ```
