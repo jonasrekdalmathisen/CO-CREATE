@@ -1,0 +1,321 @@
+---
+title: "Model Comparisons"
+author: "Jonas Rekdal Mathisen"
+date: "15/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+We can construct the index in multiple ways. No approach is perfect but assessing the ramifications of the choice of model can be compared using uncertainty and sensitivity analyses. 
+
+The first step is to decide on the handling of missing values. The possible approaches are 1) as NA values (ignored in calculations) or 2) assign NAs zero. The models may 
+
+Once the data is treated, we start with constructing the full model: no reduction of variables and NA values. Aggregation is done by taking the porportions of points and averaging the score in the end. 
+
+We then want to assess smaller models. Should the smaller model produce similar rankings or have less uncertainties, we should go with the simpler model. In the case where the full model provides a better picture, we go with that. 
+
+A clear limitation of this comparison is the limited data for comparison. We have five countries: Norway, Portugal, Netherlands, UK and Poland. The first models contain vast amounts of indicators (upwards to 400), while smaller models have around 30 indicators. The five sample countries may not be enough to produce significant statistical variation.
+
+#Data
+We benchmarked five CO-CREATE countries: Norway, Poland, Netherlands, United Kingdom and Portugal. The framework is based on the NOURISHING framework:
+
+![Alt text](C:\Users\JRMA\OneDrive - Folkehelseinstituttet\Dokumenter\CO-CREATE\graphs\PPA-Nourishing-WEB.jpg.webp)
+
+Data manipulation and visualisation is used with the aid of the following packages available from CRAN: 
+
+```{r Packages}
+#libraries:
+pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse, RColorBrewer, readxl)
+```
+
+#Initialisation
+This script is copied from NOURISHING_PI_full.Rmd.
+
+##Input data
+```{r load, warning=FALSE}
+
+#Import the benchmarking results to R
+Benchmark_raw <- read_excel("rescaledN.xlsx", 
+    sheet = "All_countries_format")
+
+# #Add PD code
+# Benchmark_raw$PD_code <- case_when(
+#   Benchmark_raw$`Policy dimension` == "Food environment" ~"FoodEnv",
+#   Benchmark_raw$`Policy dimension` == "Food system" ~ "FoodSyst",
+#   Benchmark_raw$`Policy dimension` == "Behaviour change communication" ~ "BehCha"
+# )
+
+numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
+
+
+#Benchmark_raw <- Benchmark_raw %>% 
+ # filter(is.na(Indicator_type) | Indicator_type != "M&E" & Indicator_type != "Implementation")
+
+Benchmark_raw %>% head(5) %>% reactable(compact=T)
+
+```
+
+## Transform data to COINr
+### Indicator Data (IndData)
+```{r}
+#Select countries benchmarked and indicator ID only
+IndData_NPI_F <- Benchmark_raw %>% select(c("UniqueID", "NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric"))
+
+#Assign proper names
+colnames(IndData_NPI_F) <- c("UniqueID", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands")
+
+#List of indicators
+Indicators <- c(t(IndData_NPI_F$UniqueID))
+
+#Transpose the table, add column names
+IndData_NPI_F <- data.frame(t(IndData_NPI_F[-1]))
+colnames(IndData_NPI_F) <- Indicators
+
+#Go to COIN
+
+#Fix the index
+IndData_NPI_F$UnitName <- rownames(IndData_NPI_F)
+row.names(IndData_NPI_F) <- NULL
+
+
+#Make unit codes
+IndData_NPI_F <- IndData_NPI_F %>% mutate(UnitCode = countrycode(sourcevar = UnitName, origin="country.name", destination="iso3c"))
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+IndData_NPI_F <- IndData_NPI_F %>% mutate(
+  Group_Continent = countrycode(sourcevar = UnitName, origin="country.name", destination="continent"), 
+  Group_EU = countrycode(sourcevar = UnitName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = UnitName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(UnitCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+#Potential groups: GDP, inequality etc, obesity prevalence etc.
+
+IndData_NPI_F <- IndData_NPI_F %>% mutate_if(is_double,as.integer)
+
+```
+
+###Indicator metadata (IndMeta)
+
+```{r}
+AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter") %>% distinct()
+
+#OLD: AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter", "PD_code") %>% distinct()
+
+
+colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA")
+
+#OLD: colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA", "Agg_PolDim")
+
+#Select countries benchmarked and indicator ID only
+IndMeta_NPI_f <- Benchmark_raw %>% select(matches("final_numeric$|UniqueID$|Indicator name$|Max_scale$"))
+  #ADD UNITS OF THE INDICATOR (INDUNIT) TO ORIGINAL EXCEL
+
+#Assign proper names
+colnames(IndMeta_NPI_f) <- c("IndCode", "IndName", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands", "Target")
+
+IndMeta_NPI_f$Direction <- 1 #All indicators got positive direction
+IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
+
+IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
+
+IndMeta_NPI_f$Agg_Index <- "NOURISHING"
+```
+
+
+### Aggregation metadata (AggMeta)
+
+```{r}
+#AggMeta <- Benchmark_raw %>% select("Policy dimension", "Policy area", "Policy letter", "Sub-policy area", "Benchmark ID") %>%
+
+#SubPA = 1
+
+SubPas <- Benchmark_raw %>% select("Sub-policy area", "Benchmark ID") %>% distinct()
+
+colnames(SubPas) <- c("Name", "Code")
+
+SubPas$AgLevel = 2
+
+#PA = 2
+PAreas <- Benchmark_raw %>% select("Policy area", "Policy letter") %>% distinct()
+
+colnames(PAreas) <- c("Name", "Code")
+
+PAreas$AgLevel = 3
+# 
+# #PD = 3
+# PD <- Benchmark_raw %>% select("Policy dimension", "PD_code") %>% distinct()
+# 
+# colnames(PD) <- c("Name", "Code")
+# 
+# PD$AgLevel = 4
+
+#Merge the three aggregation levels
+AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas))
+
+#OLD: AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas, PD))
+
+
+AggMeta_NPI_f$Weight = 1 
+
+#INDEX = 4
+AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=4, Weight=1)
+
+#OLD: AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=5, Weight=1)
+
+```
+
+### Assemble all the data to COINr
+This is the full model as envisoned earlier in the project.
+```{r}
+NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f)
+```
+
+
+# Models
+## Full benchmark 
+This includes all variables and no changes to the data at all. 
+No normalisation is necessary due to the structure of data. 
+
+Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
+
+
+```{r}
+#Simple averages of percent
+NPI_f <- aggregate(NPI_f, dset="Raw")
+
+#Results
+getResults(NPI_f, tab_type = "Aggregates")
+```
+
+```{r}
+NPI_f <- checkData(NPI_f, dset="Raw")
+NPI_f$Analysis$Raw$MissDatSummary
+
+NPI_f$Analysis$Raw$MissDatSummary$N_missing %>% mean()
+```
+
+
+
+## Model A: Complex mode => Implementation + M&E excluded
+
+Make lists of survey items to include or exclude from furth analysis
+```{r}
+list_ME <- Benchmark_raw %>% 
+  filter(Indicator_type == "M&E") %>% select(UniqueID) %>% as_vector()
+
+list_implementation <- Benchmark_raw %>% 
+  filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
+```
+
+
+Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
+```{r}
+
+ComplexModel <- NPI_f
+
+#Only M&E excluded indicators included
+ComplexModel$Method$assemble$exclude <- c(list_ME, list_implementation)
+
+ComplexModel <- regen(ComplexModel, quietly=F)
+
+getResults(ComplexModel, tab_type = "Aggregates") %>% reactable(compact=T)
+
+```
+
+## SimplifiedModel: Presence only
+```{r}
+PresenceYN <- NPI_f
+
+#Only 1.0 indicators included
+PresenceYN$Method$assemble$include <- c(list_implementation)
+
+#Regen model
+PresenceYN <- regen(PresenceYN, quietly=F)
+
+```
+```{r}
+PresenceYN <- checkData(PresenceYN, dset="Raw")
+
+PresenceYN$Analysis$Raw$MissDatSummary
+```
+
+
+```{r}
+#Results
+getResults(PresenceYN, tab_type = "Aggregates") %>% reactable(compact=T)
+```
+
+Alternative model: distance to target
+
+```{r}
+dist2targ_complex <- ComplexModel
+
+#Only M&E excluded indicators included
+
+dist2targ_complex$Method$normalise$ntype <- "dist2targ"
+
+#Apply strict model witout M&E to assess change
+
+dist2targ_complex <- regen(dist2targ_complex, quietly=F)
+
+getResults(dist2targ_complex, tab_type = "Aggregates" %>% reactable(compact=T)
+
+
+```
+
+
+
+```{r}
+
+getResults(z_score, tab_type = "Aggregates", out2 = "df")
+
+#Only transform certain elements in the table
+vars <- names(z_scoreResults)[c(-1:-3)]
+
+#Run a loop. Thanks to Y. Kameleri for code at NIPH.
+
+library(data.table)
+
+setDT(z_scoreResults)
+
+for (i in vars){
+  z_scoreResults[, (i) := round(pnorm(get(i))*100,0)]
+}
+
+
+z_scoreResults
+
+```
+
+## Comparing models 
+```{r}
+#compTable(NPI_f, PresenceYN, dset = "Aggregated", isel="NOURISHING")
+
+
+ComparedCOINs <- compTableMulti(list(NPI_f, ComplexModel, PresenceYN), dset = "Aggregated", isel = "NOURISHING") %>% as.data.frame()
+
+colnames(ComparedCOINs) <- c("UnitCode", "UnitName","Full", "Complex", "Simplified")
+
+
+ComparedCOINs
+
+#ME_exc + StrictModel 
+```
+
+
+
+## COPELAND + RANKS model
+```{r}
+
+```
+
+# Uncertainty and sensitivity analysis of different models
+```{r}
+
+```
