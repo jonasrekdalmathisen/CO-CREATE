@@ -50,7 +50,7 @@ pacman::p_load(COINr, countrycode, reactable, tidyverse)
 ## WCRF policy database
 Data is open source from http://policydatabase.wcrf.org. 
 ```{r loadGPI}
-policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export10-Dec-2021.csv", show_col_types = FALSE)
+policydb <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\policy-export30-May-2022.csv", show_col_types = FALSE)
 
 colnames(policydb) <- c("DB_type", "PolicyArea", "SubPArea", "PolicyAction", "Country", "Topics", "BenchmarkID", "PolicyAreaID", "PolicyDim")
 
@@ -124,18 +124,12 @@ COINr_SPA <- COINr_SPA %>% mutate(
 
 COINr_SPA <- na.omit(COINr_SPA)
 
-COINr_SPA <- COINr_SPA %>% mutate(Group_EU = case_when(
-  UnitCode == "NOR" ~ "EU", 
-  UnitCode == "ISL" ~ "EU", 
-  UnitCode == "LIE" ~ "EU",
-  UnitCode == "CHE" ~ "EU",
-  UnitCode == "RUS" ~ "NA", #not part of scan this round
-  TRUE ~ Group_EU)
-)
+
 
 #only European countries for idnexation
-COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
+#COINr_SPA <- COINr_SPA %>% filter(Group_EU=="EU")
 
+COINr_SPA <- COINr_SPA %>% filter(Group_COCREATE==TRUE)
 
 #Consider adding certain variables etc for further analysis (eurostat stuff)
 

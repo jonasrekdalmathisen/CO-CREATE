@@ -34,7 +34,7 @@ https://bluefoxr.github.io/COINrDoc/coins-the-currency-of-coinr.html
 library(readxl, suppressMessages(T))
 
 #Import the benchmarking results to R
-Benchmark_raw <- read_excel("benchmark1301.xlsx", 
+Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\NOURISHING\\Primary NOURISHING benchmarking sheets - rescaled.xlsx", 
     sheet = "All_countries_format")
 
 # #Add PD code

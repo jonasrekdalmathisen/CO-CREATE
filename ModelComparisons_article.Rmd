@@ -29,17 +29,15 @@ Data manipulation and visualisation is used with the aid of the following packag
 
 ```{r Packages}
 #libraries:
-pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse, RColorBrewer, readxl)
+pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse, RColorBrewer, readxl, ggplot2, corrr, ggcorrplot)
 ```
 
-#Initialisation
-This script is copied from NOURISHING_PI_full.Rmd.
 
 ##Input data
 ```{r load, warning=FALSE}
 
 #Import the benchmarking results to R
-Benchmark_raw <- read_excel("rescaledN.xlsx", 
+Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\NOURISHING\\Primary NOURISHING benchmarking sheets - rescaled.xlsx", 
     sheet = "All_countries_format")
 
 # #Add PD code
@@ -57,6 +55,15 @@ numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_
 
 Benchmark_raw %>% head(5) %>% reactable(compact=T)
 
+```
+
+Make lists of survey items to include or exclude from furth analysis
+```{r}
+list_ME <- Benchmark_raw %>% 
+  filter(Indicator_type == "M&E") %>% select(UniqueID) %>% as_vector()
+
+list_implementation <- Benchmark_raw %>% 
+  filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
 ```
 
 ## Transform data to COINr
@@ -97,7 +104,6 @@ IndData_NPI_F <- IndData_NPI_F %>% mutate(
 #Potential groups: GDP, inequality etc, obesity prevalence etc.
 
 IndData_NPI_F <- IndData_NPI_F %>% mutate_if(is_double,as.integer)
-
 ```
 
 ###Indicator metadata (IndMeta)
@@ -121,6 +127,9 @@ colnames(IndMeta_NPI_f) <- c("IndCode", "IndName", "Norway", "Poland", "United K
 
 IndMeta_NPI_f$Direction <- 1 #All indicators got positive direction
 IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
+
+#IndMeta_NPI_f <- IndMeta_NPI_f %>% mutate(IndWeight = case_when(grepl(".0.0", IndCode) ~ 0.5, 
+                                         # TRUE ~ as.numeric(as.vector(IndWeight))))
 
 IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
 
@@ -160,8 +169,8 @@ AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas))
 
 #OLD: AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas, PD))
 
-
 AggMeta_NPI_f$Weight = 1 
+
 
 #INDEX = 4
 AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=4, Weight=1)
@@ -173,9 +182,8 @@ AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code=
 ### Assemble all the data to COINr
 This is the full model as envisoned earlier in the project.
 ```{r}
-NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f)
+NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f, exclude=list_ME)
 ```
-
 
 # Models
 ## Full benchmark 
@@ -185,12 +193,18 @@ No normalisation is necessary due to the structure of data.
 Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
 
 
+
 ```{r}
 #Simple averages of percent
 NPI_f <- aggregate(NPI_f, dset="Raw")
 
 #Results
-getResults(NPI_f, tab_type = "Aggregates")
+getResults(NPI_f, tab_type = "Aggregates") %>% reactable()
+
+results_all <- getResults(NPI_f, tab_type = "Aggregates", use="Ranks")
+
+write.csv(results_all, "Results_NOweighted_all_YNinc_MEout_ranks.csv")
+
 ```
 
 ```{r}
@@ -204,19 +218,10 @@ NPI_f$Analysis$Raw$MissDatSummary$N_missing %>% mean()
 
 ## Model A: Complex mode => Implementation + M&E excluded
 
-Make lists of survey items to include or exclude from furth analysis
-```{r}
-list_ME <- Benchmark_raw %>% 
-  filter(Indicator_type == "M&E") %>% select(UniqueID) %>% as_vector()
-
-list_implementation <- Benchmark_raw %>% 
-  filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
-```
 
 
 Number of indicators: `r NPI_f$Input$IndMeta %>% count() %>% as_vector()`
 ```{r}
-
 ComplexModel <- NPI_f
 
 #Only M&E excluded indicators included
@@ -226,7 +231,33 @@ ComplexModel <- regen(ComplexModel, quietly=F)
 
 getResults(ComplexModel, tab_type = "Aggregates") %>% reactable(compact=T)
 
+results_complex <- getResults(ComplexModel, tab_type = "Aggregates")
+
+write.csv(results_complex, "Complex_woWeights_woYN_woME.csv")
+
 ```
+
+```{r}
+plotframework(ComplexModel)
+```
+
+
+```{r}
+
+NOURISHING_L <- c("NOURISHING", "N", "O", "U", "R", "I", "S", "H", "I.2.", "N.2.", "G")
+
+
+##RANK REMOVED: , use="ranks" | , -Rank)
+Complex_PL <- getResults(ComplexModel, tab_type = "Aggregates")
+Complex_PL_rank <- getResults(ComplexModel, tab_type = "Aggregates", use="ranks")
+
+Complex_SPL <- getResults(ComplexModel, tab_type = "Aggregates", use="ranks") %>% select (-UnitName, -NOURISHING_L)
+
+Complex_SPL
+
+write.csv(Complex_PL, "Complex_PL_raw.csv")
+```
+
 
 ## SimplifiedModel: Presence only
 ```{r}
@@ -249,48 +280,113 @@ PresenceYN$Analysis$Raw$MissDatSummary
 ```{r}
 #Results
 getResults(PresenceYN, tab_type = "Aggregates") %>% reactable(compact=T)
+
+results_simple <- getResults(PresenceYN, tab_type = "Aggregates")
+
+
+write.csv(results_simple, "Simple_wYN_woWeights.csv")
+
+results_simple_ranks <- getResults(PresenceYN, tab_type = "Aggregates", use="ranks")
+write.csv(results_simple_ranks, "results_simple_ranks.csv")
+
+##RANK REMOVED: , use="ranks"
+YN_PL <- getResults(PresenceYN, tab_type = "Aggregates", use="ranks")
+
+YN_SPL <- getResults(PresenceYN, tab_type = "Aggregates", use="ranks") 
+  #%>% select (-UnitName, -NOURISHING_L, -Rank)
+
+YN_SPL
+write.csv(YN_PL, "YNPL_rank.csv")
+
+YN_PL
+
 ```
 
-Alternative model: distance to target
+
+## Arnfinn's model
+This model combines the presence index with the complex model. It uses the variable ComplexModel versus PresenceYN. The tables used is 
 
 ```{r}
-dist2targ_complex <- ComplexModel
+results_simple #YN modellen
+results_complex #komplekse uten ME+YN
 
-#Only M&E excluded indicators included
+#Simple conversion
+xresults_simple <- results_simple[order(results_simple$'UnitCode'),] %>% `rownames<-`(c())
 
-dist2targ_complex$Method$normalise$ntype <- "dist2targ"
+xresults_simple <- column_to_rownames(xresults_simple, var = "UnitCode")
 
-#Apply strict model witout M&E to assess change
+xresults_simple <- xresults_simple %>% select(-UnitName, -Rank)
 
-dist2targ_complex <- regen(dist2targ_complex, quietly=F)
+#Complex conversion
+xresults_complex <- results_complex[order(results_complex$'UnitCode'),] %>% `rownames<-`(c())
 
-getResults(dist2targ_complex, tab_type = "Aggregates" %>% reactable(compact=T)
+xresults_complex <- column_to_rownames(xresults_complex, var = "UnitCode")
 
+xresults_complex <- xresults_complex %>% select(-UnitName, -Rank)
+
+#Selve modellen til Arnfinn
+Arnfinns_results <- round((xresults_simple + xresults_complex)/2) %>% as.data.frame()
+
+write.csv(Arnfinns_results, "ArnfinnsModel_YN_plus_benchmark_divided_2_scores.csv")
+
+#Rangering
+Arnfinns_ranks <- rankDF(Arnfinns_results) %>% row.names(c("GBR", "NLD", "NOR", "POL", "PRT"))
+Arnfinns_ranks <- `row.names<-.data.frame`(Arnfinns_ranks, c("GBR", "NLD", "NOR", "POL", "PRT"))
+write.csv(Arnfinns_ranks, "ArnfinnsModel_YN_plus_benchmark_divided_2_ranks.csv")
 
 ```
 
-
-
 ```{r}
+#fix table for correlation, ranks simple model
+xresults_simple_ranks <- results_simple_ranks[order(results_simple_ranks$'UnitCode'),] %>% `rownames<-`(c())
+xresults_simple_ranks <- column_to_rownames(xresults_simple_ranks, var = "UnitCode")
+xresults_simple_ranks <- xresults_simple_ranks %>% select(-UnitName)
 
-getResults(z_score, tab_type = "Aggregates", out2 = "df")
+#perform corell 
+corr_Arnfinn_vs_Simple <- cor(Arnfinns_ranks, xresults_simple_ranks, method = "kendall",  ) %>% as.data.frame()
 
-#Only transform certain elements in the table
-vars <- names(z_scoreResults)[c(-1:-3)]
+ggcorrplot(corr_Arnfinn_vs_Simple, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=T, lab_size = 2, show.legend = T, show.diag = T)
 
-#Run a loop. Thanks to Y. Kameleri for code at NIPH.
-
-library(data.table)
-
-setDT(z_scoreResults)
-
-for (i in vars){
-  z_scoreResults[, (i) := round(pnorm(get(i))*100,0)]
+df <- list()
+for (i in seq_len(nrow(corr_Arnfinn_vs_Simple))){
+  ba <- rep(NA, nrow(corr_Arnfinn_vs_Simple))
+  ba[i] <- corr_Arnfinn_vs_Simple[i,i]
+  df[[i]] <- ba
 }
 
+corr_Arnfinn_vs_Simple_select <- as.data.frame(df, col.names = names(corr_Arnfinn_vs_Simple), row.names = names(xresults_simple_ranks))
 
-z_scoreResults
+write.csv(corr_Arnfinn_vs_Simple_select, "correlation_matrix_arnfinn_v_simple.csv")
 
+ggcorrplot(corr_Arnfinn_vs_Simple_select, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=T, lab_size = 2, show.legend = T, show.diag = T)
+
+
+```
+
+
+## Make categorisations
+```{r}
+Arnfinns_Coded <- Arnfinns_results %>% mutate(across(everything(), ~ case_when(
+  . <= 25  ~ "None or very little", 
+  . > 25 & . < 50 ~ "Low", 
+  . >= 50 & . < 75 ~ "Moderate",
+  . >= 75 ~ "High"
+)))
+
+write.csv(Arnfinns_Coded, "Categorisedresults_arnfinn_YN_divided_benchmark.csv")
+```
+
+```{r}
+Arnfinns_Coded_numeric <- Arnfinns_results %>% mutate(across(everything(), ~ case_when(
+  . <= 25  ~ 1, 
+  . > 25 & . < 50 ~ 2, 
+  . >= 50 & . < 75 ~ 3,
+  . >= 75 ~ 4
+)))
+
+write.csv(Arnfinns_Coded_numeric, "Categorisedresults_arnfinn_YN_divided_benchmark_numeric.csv")
 ```
 
 ## Comparing models 
@@ -303,19 +399,242 @@ ComparedCOINs <- compTableMulti(list(NPI_f, ComplexModel, PresenceYN), dset = "A
 colnames(ComparedCOINs) <- c("UnitCode", "UnitName","Full", "Complex", "Simplified")
 
 
-ComparedCOINs
+ComparedCOINs %>% reactable()
 
 #ME_exc + StrictModel 
 ```
 
+## Correlation of ranks
+```{r}
+#Presence_Stats <- getStats(PresenceYN, dset="Aggregated",cortype = "kendall", out2 = "list")
+
+#plotCorr(ComplexModel, dset = "Aggregated", aglevs = c(1,2), showvals = T, withparent = "family",
+         #flagcolours = TRUE)
+
+```
+
+## Correlation sub-policy level ranks
+```{r}
+#https://stackoverflow.com/questions/70368505/creating-kendall-correlation-matrix
+#https://rpkgs.datanovia.com/ggcorrplot/
+
+#Sort and fix ranks for simple model
+xYN_SPL <- YN_SPL
+
+xYN_SPL <- xYN_SPL[order(xYN_SPL$'UnitCode'),] %>% `rownames<-`(c())
+
+xYN_SPL <- column_to_rownames(xYN_SPL, var = "UnitCode")
+
+xYN_SPL
+#xYN_PL$Model <- "M_Simple"
+#xYN_PL<- xYN_PL %>% select(-Model)
+
+#Same for complex
+xComplexSPL <- Complex_SPL
+
+xComplexSPL <- xComplexSPL[order(xComplexSPL$'UnitCode'),] %>% `rownames<-`(c())
+
+xComplexSPL <- column_to_rownames(xComplexSPL, var = "UnitCode")
+
+xComplexSPL
+#xComplex$Model <- "M_Complex"
+#xComplex<- xComplex %>% select(-Model)
+
+corr_SPL <- cor(xYN_SPL, xComplexSPL, method = "kendall",  ) %>% as.data.frame()
+
+df <- list()
+for (i in seq_len(nrow(corr_SPL))){
+  ba <- rep(NA, nrow(corr_SPL))
+  ba[i] <- corr_SPL[i,i]
+  df[[i]] <- ba
+}
+
+corrSPL_select <- as.data.frame(df, col.names = names(corr_SPL), row.names = names(corr_SPL))
+
+#Ikke noe poeng, for lite N
+  #p.mat_SPL <- cor_pmat(corr_SPL, method = "kendall") %>% as.data.frame()
 
 
-## COPELAND + RANKS model
+  #df <- list()
+ # for (i in seq_len(nrow(p.mat))){
+ #   ba <- rep(NA, nrow(p.mat))
+ #   ba[i] <- p.mat_SPL[i,i]
+ #   df[[i]] <- ba
+ # }
+
+  #p.mat_SPL <- as.data.frame(df, col.names = names(p.mat), row.names = names(p.mat_SPL))
+
+ggcorrplot(corrSPL_select, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=T, lab_size = 2, show.legend = T, show.diag = T)
+
+corr_SPL
+
+```
+
+## Correlation policy level ranks and aggregate index
+```{r}
+#https://stackoverflow.com/questions/70368505/creating-kendall-correlation-matrix
+#https://rpkgs.datanovia.com/ggcorrplot/
+YN_PL
+
+xYN_PL
+
+#Sort and fix ranks for simple model
+xYN_PL <- YN_PL
+
+xYN_PL <- xYN_PL[order(xYN_PL$'UnitCode'),] %>% `rownames<-`(c())
+
+xYN_PL <- column_to_rownames(xYN_PL, var = "UnitCode")
+
+xYN_PL <- xYN_PL %>% select(-UnitName)
+#xYN_PL$Model <- "M_Simple"
+#xYN_PL<- xYN_PL %>% select(-Model)
+
+#Same for complex
+xComplex <- Complex_PL
+
+xComplex <- xComplex[order(xComplex$'UnitCode'),] %>% `rownames<-`(c())
+
+xComplex <- column_to_rownames(xComplex, var = "UnitCode")
+
+xComplex <- xComplex %>% select(-Rank, -UnitName)
+
+xComplex
+#xComplex$Model <- "M_Complex"
+#xComplex<- xComplex %>% select(-Model)
+
+x <- cor(xYN_PL, xComplex, method = "kendall",  ) %>% as.data.frame()
+
+df <- list()
+for (i in seq_len(nrow(x))){
+  ba <- rep(NA, nrow(x))
+  ba[i] <- x[i,i]
+  df[[i]] <- ba
+}
+
+x_select <- as.data.frame(df, col.names = names(x), row.names = names(x))
+
+p.mat <- cor_pmat(x, method = "kendall") %>% as.data.frame()
+
+df <- list()
+for (i in seq_len(nrow(p.mat))){
+  ba <- rep(NA, nrow(p.mat))
+  ba[i] <- p.mat[i,i]
+  df[[i]] <- ba
+}
+
+p.mat <- as.data.frame(df, col.names = names(p.mat), row.names = names(p.mat))
+
+p.mat
+
+ggcorrplot(x_select, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=TRUE, show.legend = F, show.diag = T)
+
+
+
+```
+
+
+# Maths
+```{r}
+YN_PL <- YN_PL[order(YN_PL$UnitCode), ] %>% as_tibble()
+Complex_PL <- Complex_PL[order(Complex_PL$UnitCode), ] %>% as_tibble()
+
+YN_PL
+Complex_PL
+
+YN_PL <- column_to_rownames(YN_PL, var = "UnitCode") 
+Complex_PL <- column_to_rownames(Complex_PL, var = "UnitCode")
+
+write.csv(YN_PL, "Complex_PL.csv")
+write.csv(Complex_PL, "Complex_PL.csv")
+diff<- Complex_PL - YN_PL
+
+write.csv(diff, "diff_PL.csv")
+
+
+diff
+## Minus betyr, e. g. NLD har 3 i enkel modell, men rang 2 i komples modell . Dvs. 
+
+```
+
 ```{r}
 
 ```
+
 
 # Uncertainty and sensitivity analysis of different models
 ```{r}
+plotCorr(ComplexModel, dset = "Aggregated", aglevs = c(2,3), showvals = T)
+
+plotCorr(PresenceYN, dset = "Aggregated", aglevs = c(2,3), showvals = T)
+
+plotCorr(ComplexModel, dset = "Aggregated", aglevs = c(2,3), showvals = T,use="ranks", withparent = "family", flagcolours = TRUE)
+```
+
+# Comparisons of models
+```{r}
+compTable(ComplexModel,PresenceYN, dset="Aggregated", isel= c("G"))
+```
+
+# Comparisons of models
+```{r}
+ResultsComplexRank <- getResults(ComplexModel, tab_type = "Aggregates", use = "ranks") %>% reactable::reactable()
+
+ResultsYNRank <- getResults(PresenceYN, tab_type = "Aggregates", use = "ranks") %>% reactable::reactable()
+
+ResultsYNRank
+```
+
+
+```{r}
+
+
+# create list specifying assumptions to vary and alternatives
+
+
+nspecs <- data.frame(AgLevel = c(2,3), NoiseFactor = c(0,0))
+
+SAspecs <- list(assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f, include=list_implementation), weights = list(NoiseSpecs = nspecs, Nominal = "Original"))
+
+# run uncertainty analysis
+
+SAresults <- sensitivity(NPI_f, v_targ = "Index",
+                         SA_specs = SAspecs,
+                         N = 100,
+                         SA_type = "UA")
 
 ```
+
+
+
+```{r}
+ggplot2(Complex_PL)
+
+library(ggplot2)
+
+ComplexModel$Input$IndMeta$IndCode %>% sum()
+
+```
+
+
+
+# Sensitivity
+```{r}
+
+ComplexModel 
+
+nspecs <- data.frame(AgLevel = c(2,3), NoiseFactor = c(0.25,0.25))
+
+SAspecs <- list(assemble = list(include = list_implementation))
+                
+weights = list(NoiseSpecs = nspecs, Nominal = "Original")
+  
+SAresults <- sensitivity(NPI_f, v_targ = "Index", SA_specs = SAspecs, N = 100, SA_type = "UA")
+
+SAresults
+
+
+
+```
+
