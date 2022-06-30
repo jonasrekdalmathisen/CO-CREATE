@@ -113,13 +113,14 @@ AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter")
 
 #OLD: AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter", "PD_code") %>% distinct()
 
+AggHier
 
 colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA")
 
 #OLD: colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA", "Agg_PolDim")
 
 #Select countries benchmarked and indicator ID only
-IndMeta_NPI_f <- Benchmark_raw %>% select(matches("final_numeric$|UniqueID$|Indicator name$|Max_scale$"))
+IndMeta_NPI_f <- Benchmark_raw %>% select(matches("final_numeric$|UniqueID$|Indicator name$|Max_scale$")) %>% select(-matches("FRA|BUL"))
   #ADD UNITS OF THE INDICATOR (INDUNIT) TO ORIGINAL EXCEL
 
 #Assign proper names
@@ -129,7 +130,7 @@ IndMeta_NPI_f$Direction <- 1 #All indicators got positive direction
 IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
 
 #IndMeta_NPI_f <- IndMeta_NPI_f %>% mutate(IndWeight = case_when(grepl(".0.0", IndCode) ~ 0.5, 
-                                         # TRUE ~ as.numeric(as.vector(IndWeight))))
+ #                                        TRUE ~ as.numeric(as.vector(IndWeight))))
 
 IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
 
@@ -171,7 +172,6 @@ AggMeta_NPI_f <- do.call("rbind", list(SubPas, PAreas))
 
 AggMeta_NPI_f$Weight = 1 
 
-
 #INDEX = 4
 AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code="NOURISHING", AgLevel=4, Weight=1)
 
@@ -182,8 +182,53 @@ AggMeta_NPI_f <- AggMeta_NPI_f %>% add_row(Name="NOURISHING Policy Index", Code=
 ### Assemble all the data to COINr
 This is the full model as envisoned earlier in the project.
 ```{r}
-NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f, exclude=list_ME)
+NPI_f <- assemble(IndData_NPI_F, IndMeta_NPI_f, AggMeta_NPI_f, exclude=c(list_ME, list_implementation))
 ```
+
+```{r}
+NumberItems<- NPI_f$Input$IndMeta %>% count(Agg_PA)
+NumberItems<- NPI_f$Input$IndMeta %>% count(Agg_SubPA)
+
+NPI_f$Input$IndMeta
+
+NumberItems
+
+NPI_f$Input$IndMeta
+
+NumberItems$n_marker <- NumberItems$n + 1
+
+NumberItems
+
+plotframework(NPI_f)
+
+```
+
+```{r}
+EffectiveWeights_df <- effectiveWeight(NPI_f) %>% as.data.frame()
+
+EffectiveWeights_df$EffectiveWeights <- round(EffectiveWeights_df$EffectiveWeights, 3)
+
+EffectiveWeights_df %>% distinct(LabelsParents.Parents, EffectiveWeights)
+
+
+
+e <- EffectiveWeights %>% group_by(LabelsParents.Labels) %>% summarise(EffectiveWeights) %>% distinct()
+e
+
+e$EffectiveWeightsList.EffectiveWeight <- e$EffectiveWeightsList.EffectiveWeight %>% as.numeric() %>% round(5)
+
+e
+
+
+
+fig <- plotly::plot_ly(labels = outW$LabelsParents$Labels, 
+    parents = outW$LabelsParents$Parents, values = outW$EffectiveWeights, 
+    type = "sunburst", branchvalues = "total")
+  fig
+}
+
+```
+
 
 # Models
 ## Full benchmark 
@@ -215,6 +260,11 @@ NPI_f$Analysis$Raw$MissDatSummary$N_missing %>% mean()
 ```
 
 
+```{r}
+
+NPI_f$IndMeta
+```
+
 
 ## Model A: Complex mode => Implementation + M&E excluded
 
@@ -238,7 +288,7 @@ write.csv(results_complex, "Complex_woWeights_woYN_woME.csv")
 ```
 
 ```{r}
-plotframework(ComplexModel)
+regen
 ```
 
 
