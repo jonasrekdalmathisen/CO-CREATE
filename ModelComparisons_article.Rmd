@@ -104,6 +104,8 @@ IndData_NPI_F <- IndData_NPI_F %>% mutate(
 #Potential groups: GDP, inequality etc, obesity prevalence etc.
 
 IndData_NPI_F <- IndData_NPI_F %>% mutate_if(is_double,as.integer)
+
+IndData_NPI_F %>% reactable()
 ```
 
 ###Indicator metadata (IndMeta)
@@ -133,6 +135,8 @@ IndMeta_NPI_f$IndWeight <- 1 #All indicators carry the same weight
  #                                        TRUE ~ as.numeric(as.vector(IndWeight))))
 
 IndMeta_NPI_f <- left_join(IndMeta_NPI_f,AggHier, by=c("IndCode"="UniqueID"))
+
+IndMeta_NPI_f
 
 IndMeta_NPI_f$Agg_Index <- "NOURISHING"
 ```

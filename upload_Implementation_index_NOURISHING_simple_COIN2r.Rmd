@@ -13,7 +13,7 @@ In this version, I try to aggregate and play with the policy data to make an ind
 
 ```{r Packages}
 #libraries:
-pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse)
+pacman::p_load(COINr, countrycode, reactable, tidyverse)
 ```
 
 #Initialisation
@@ -60,7 +60,12 @@ In the following table it is evident that there are differences also by policy a
 
 policydb %>% count(PolicyArea, SubPArea, sort=F, name = "Number of policy actions") %>% reactable::reactable(resizable = TRUE, bordered = TRUE, filterable = TRUE)
 
+
+
 ```
+
+
+
 
 
 ## Prepare data for analysis using COINr
