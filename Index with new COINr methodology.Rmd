@@ -1,0 +1,219 @@
+---
+title: "Modelling comparisons with new COINr methodology"
+author: "Jonas Rekdal Mathisen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Packages, include=FALSE}
+#libraries:
+pacman::p_load(COINr, countrycode, reactable, tidyverse, read_xls, RColorBrew, readxl)
+```
+
+
+##Input data
+```{r load, warning=FALSE}
+
+#Import the benchmarking results to R
+Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\NOURISHING\\Primary NOURISHING benchmarking sheets - rescaled.xlsx", 
+    sheet = "All_countries_format")
+
+#List the countries that should be included in analysis
+numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
+
+Benchmark_raw %>% head(5) %>% reactable(compact=T)
+
+```
+
+Make lists of survey items to include or exclude from furth analysis
+```{r}
+list_ME <- Benchmark_raw %>% 
+  filter(Indicator_type == "M&E") %>% select(UniqueID) %>% as_vector()
+
+list_implementation <- Benchmark_raw %>% 
+  filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
+```
+
+## Transform data to COINr
+### Indicator Data (IndData == iData)
+```{r}
+#Select countries benchmarked and indicator ID only
+iData <- Benchmark_raw %>% select(c("UniqueID", "NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric"))
+
+#Assign proper names
+colnames(iData) <- c("UniqueID", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands")
+
+Indicators <- c(t(iData$UniqueID))
+
+iData <- data.frame(t(iData[-1]))
+colnames(iData) <- Indicators
+
+#Fix the index
+iData$uName <- rownames(iData)
+row.names(iData) <- NULL
+
+
+isCoCREATE <- c("Norway", "Netherlands", "Portugal", "Poland", "United Kingdom")
+
+iData <- iData %>% mutate(
+  Group_Continent = countrycode(sourcevar = uName, origin="country.name", destination="continent"), 
+  uCode = countryname(sourcevar = uName, destination = "iso3c"),
+  #Group_EU = countrycode(sourcevar = uName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = uName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(uName %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+iData %>% reactable()
+iData <- iData %>% mutate_if(is_double,as.integer)
+
+check_iData(IndData)
+
+```
+
+```{r}
+colnames(iData)
+```
+
+
+### iMeta 
+```{r}
+##Groups
+Groups <- iData %>% select(starts_with(c("Group_"))) %>% colnames() %>% as.data.frame()
+
+colnames(Groups) <- c("iCode")
+
+Groups$iName <- "Group info"
+
+Groups$Parent <- NA
+
+Groups$Level <- NA
+
+Groups$Type <- "Group" 
+
+
+BenchmarkMeta <-
+  Benchmark_raw %>% select(`Policy letter`, `Policy area`, `Benchmark ID`, `Sub-policy area`, UniqueID, `Indicator name`)
+
+###Level 1 - indicators
+iMeta_Indicators <- BenchmarkMeta %>% select(UniqueID, `Indicator name`, `Benchmark ID`)
+
+colnames(iMeta_Indicators) <- c("iCode", "iName", "Parent")
+
+iMeta_Indicators$Level <- 1
+
+iMeta_Indicators$Type <- "Indicator"
+
+
+###Level 2 - sub-policy area
+iMeta_SubPolicyArea <- BenchmarkMeta %>% select(`Benchmark ID`, `Sub-policy area`, `Policy letter`) %>% distinct()
+
+colnames(iMeta_SubPolicyArea) <- c("iCode", "iName", "Parent")
+
+iMeta_SubPolicyArea$Level <- 2
+
+iMeta_SubPolicyArea$Type <- "Aggregate" 
+
+iMeta_SubPolicyArea
+
+###Level 2: policy area
+iMeta_PolicyArea <- BenchmarkMeta %>% select(`Policy letter`, `Policy area`) %>% distinct()
+
+colnames(iMeta_PolicyArea) <- c("iCode", "iName")
+
+iMeta_PolicyArea$Parent <- "Index"
+
+iMeta_PolicyArea$Level <- 3
+
+iMeta_PolicyArea$Type <- "Aggregate" 
+
+iMeta_PolicyArea
+
+###Level 3: index
+iMeta_full <- data.frame()
+
+iMeta_full[1, ] <- c("")
+
+iMeta_full$iCode <- "Index"
+
+iMeta_full$iName <- "NOURISHING"
+
+iMeta_full$Parent <- NA
+
+iMeta_full$Level <- 4
+
+iMeta_full$Type <- "Aggregate"
+
+list_iMeta <- list(Groups, iMeta_Indicators, iMeta_SubPolicyArea,  iMeta_PolicyArea, iMeta_full)
+
+iMeta <- do.call("rbind", list_iMeta)
+
+##For everything
+iMeta$Direction <- 1 #All indicators got positive direction
+iMeta$Weight <- 1 #All indicators carry the same weight
+
+iMeta <- iMeta %>% as.data.frame()
+
+iMeta
+
+check_iMeta(iMeta)
+```
+
+
+### Weighting
+```{r}
+#0.5
+iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", iCode) ~ 0.5,
+                                             TRUE ~ as.numeric(as.vector(Weight))))
+
+#0.25
+iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", IndCode) ~ 0.25,
+                                             TRUE ~ as.numeric(as.vector(Weight))))
+
+#0.15
+iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", IndCode) ~ 0.15,
+                                             TRUE ~ as.numeric(as.vector(Weight))))
+
+#0.00
+```
+
+
+
+### Build coin (new_coin)
+```{r}
+NOURISHING <- new_coin(iData = iData,
+                          iMeta = iMeta,
+                          level_names = c("Indicators", 
+                                          "Benchmark", 
+                                          "Policy area", "NOURISHING index"),
+                       exclude = list_ME)
+
+NOURISHING
+```
+
+```{r}
+plot_framework(NOURISHING, colour_level = 2)
+```
+
+
+## Aggregation
+The following table show normal aggregation, with non-weighted presence, w/o M&E.
+```{r Aggregation}
+NOURISHING <- Aggregate(NOURISHING, dset = "Raw")
+
+dset_aggregated <- get_dset(NOURISHING, dset = "Aggregated")
+
+dset_aggregated %>% round_df(0) %>% reactable()
+```
+
+
+## Generation of weights
+The following provides an overview of weights. In the original version, everything is weighted equally. The effective weights look like this:
+
+```{r}
+get_eff_weights(NOURISHING, out2 = "df") %>% round_df(5) %>% reactable()
+```
+
+

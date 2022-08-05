@@ -15,31 +15,23 @@ pacman::p_load(tidyverse, readxl, viridis, pheatmap, RColorBrewer, fmsb, hrbrthe
 ```
 
 ```{r}
+#Read excel with data
 index <- read_xlsx("index med kategorier unpivoted.xlsx", sheet = "Sheet9")
 
-index$GBR <- replace_na(index$GBR, 0)
+#Pivot the data: 
+index_pivot <- index %>% pivot_longer(c("GBR", "PRT", "POL", "NOR", "NLD"), names_to = "Countries", values_to = "values")
 
-
-index %>% pivot_wider(c("UnitCode"), names_from = c("GBR", "PRT", "POL", "NOR", "NLD"), values_from = c("GBR", "PRT", "POL", "NOR", "NLD"))
-
-test <- index %>% pivot_longer(c("GBR", "PRT", "POL", "NOR", "NLD"), names_to = "Countries", values_to = "values", )
-
-
-trt <- test %>% select("UnitCode", Countries, values)
-
-
-ggplot(trt) + 
-  geom_col(aes(x = UnitCode, y = values, group=Countries, fill=Countries), position = "dodge") + coord_flip() + scale_x_discrete(label = function(x) stringr::str_trunc(x, 12))
-
+#Make column names
+colnames(index_pivot) <- c("PolicyArea", "UnitCode", "Score")
 ```
 
 ```{r}
 
-orderlist <- trt %>% select(UnitCode) %>% distinct() %>% as.list() %>% unlist()
+orderlist <- index_pivot %>% select(PolicyArea) %>% distinct() %>% as_vector()
 
-trt$UnitCode <- factor(trt$UnitCode, levels = orderlist)
+index_pivot$PolicyArea <- factor(index_pivot$PolicyArea, levels = orderlist)
 
-a <- c("Give nutrition education and skills", "Nutrition advice and counselling in health care settings" , "Inform people about food and nutrition through public awareness", 
+PolicyAreas <- c("Give nutrition education and skills", "Nutrition advice and counselling in health care settings" , "Inform people about food and nutrition through public awareness", 
 "Harness food supply chain and actions across sectors to ensure coherence with health",
 "Set incentives and rules to create a healthy retail and food service environment", 
 "Improve nutritional quality of the whole food supply", 
@@ -47,42 +39,30 @@ a <- c("Give nutrition education and skills", "Nutrition advice and counselling 
 "Use economic tools to address food affordability and purchase incentives", 
 "Offer healthy food and set standards in public institutions and other specific settings", 
 "Nutrition label standards and regulations on the use of claims and implied claims on food")
-
-cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-
-ggplot(trt, aes(fill=Countries, y=values, x=UnitCode, group=Countries)) + 
-    geom_bar(position = "dodge", stat="identity", colour = "black", width=0.45) +
-    xlab("") +
-    coord_flip() +
-    scale_x_discrete(limits = a, label = function(x) stringr::substr(x,1,1)) +
-    geom_hline(yintercept=c(25, 50, 75, 100), linetype='dashed', colour=c('red', 'orange', 'yellow', 'green'), show.legend = T)
-
-        #scale_x_discrete(label = function(x) stringr::str_trunc(x, 12))
-    
 ```
 
 
 ```{r}
 trt <- trt[order(trt$UnitCode, trt$values, decreasing = T), ]
+index_pivot <- index_pivot[order(index_pivot$PolicyArea, index_pivot$Score, decreasing = T), ]
 
+index_pivot$fills <- case_when(index_pivot$Score < 25 ~ "Red",
+                       index_pivot$Score < 50 ~ "Orange",
+                       index_pivot$Score < 75 ~ "Yellow",
+                       index_pivot$Score < 100 ~ "Green")
 
-trt$fills <- case_when(trt$values < 25 ~ "Red",
-                       trt$values < 50 ~ "Orange",
-                       trt$values < 75 ~ "Yellow",
-                       trt$values < 199 ~ "Green")
+index_pivot$fills <- factor(index_pivot$fills, levels = rev(c("Red","Orange", "Yellow", "Green")))
 
-trt$fills <- factor(trt$fills, levels = rev(c("Red","Orange", "Yellow", "Green")))
+index_pivot
 
-trt$labels$Countries 
-
-ggplot(trt, aes(y=values, x=UnitCode, group=Countries, order(rev(fills)))) + 
+ggplot(index_pivot, aes(y=Score, x=PolicyArea, group=UnitCode, order(rev(fills)))) + 
   theme_gray() +
   theme(axis.text.y = element_text(size = 11, face = "bold"), legend.position="bottom") + 
   #annotate("rect", ymin=0,ymax=25, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "red") + 
   #annotate("rect", ymin=25,ymax=50, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "orange") +
   #annotate("rect", ymin=50,ymax=75, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "yellow") +
   #annotate("rect", ymin=75,ymax=100, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "green") +
-  facet_grid(~ Countries, labeller = labeller(Countries = 
+  facet_grid(~ UnitCode, labeller = labeller(UnitCode = 
     c("GBR" = "United Kingdom",
       "NLD" = "The Netherlands",
       "NOR" = "Norway",
@@ -93,25 +73,32 @@ ggplot(trt, aes(y=values, x=UnitCode, group=Countries, order(rev(fills)))) +
   #geom_hline(aes(yintercept = 75), colour = "yellow", linetype='dashed')+
   #geom_hline(aes(yintercept = 100), colour = "green", linetype='dashed')+
   geom_bar(position = "dodge", stat="identity", colour = "black", width=0.45, aes(fill=fills)) +
-  scale_fill_manual(values = rev(c("Red","Orange", "Yellow", "Green")), labels= rev(c("Poor or non-existing", "Low quality", "Moderate quality", "High quality"))) +
+  scale_fill_manual(values = rev(c("Red","Orange", "Yellow", "Green")), labels= rev(c("Poor", "Low", "Moderate", "High"))) +
   coord_flip() + 
   scale_x_discrete(limits= a, label = function(x) substr(x,1,1)) + 
   xlab("Policy area") + 
   ylab("Score (range 0 - 100)") +
-  labs(fill='Outcome category', group=c("1", "2")) 
+  labs(fill='Quality of policy design', group=c("1", "2")) 
+
+
+trt
+ggplot
   
     
 ```
 
 # Heatmaps
 ```{r}
-index_clean <- index %>% as.data.frame()
+heatmap_index <- index_pivot %>% as.data.frame()
 
-index_clean$UnitCode <- sapply(index_clean$UnitCode, function(x) stringr::str_trunc(x, 20))
+heatmap_index$UnitCode <- sapply(heatmap_index$UnitCode, function(x) stringr::str_trunc(x, 30))
 
-index_clean <- index_clean %>% as.data.frame()
+heatmap_index <- heatmap_index %>% as.data.frame()
 
-rownames(index_clean) <- index_clean$UnitCode
+rownames(heatmap_index) <- heatmap_index$PolicyArea
+
+heatmap_index
+
 
 index_clean
 

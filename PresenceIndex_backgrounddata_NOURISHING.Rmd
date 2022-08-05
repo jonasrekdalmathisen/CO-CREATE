@@ -215,6 +215,8 @@ Presence_100 %>% reactable()
 ```{r COINbase}
 COINr_SPA <- Presence_100
 
+Presence_100
+
 names(Presence_100)[names(Presence_100) == "COUNTRY"] <- "uName"
 
 #Remove constituents
