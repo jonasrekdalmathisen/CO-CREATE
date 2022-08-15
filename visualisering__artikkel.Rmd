@@ -23,11 +23,15 @@ index_pivot <- index %>% pivot_longer(c("GBR", "PRT", "POL", "NOR", "NLD"), name
 
 #Make column names
 colnames(index_pivot) <- c("PolicyArea", "UnitCode", "Score")
+
+index_pivot
 ```
 
 ```{r}
 
 orderlist <- index_pivot %>% select(PolicyArea) %>% distinct() %>% as_vector()
+
+orderlist
 
 index_pivot$PolicyArea <- factor(index_pivot$PolicyArea, levels = orderlist)
 
@@ -43,7 +47,6 @@ PolicyAreas <- c("Give nutrition education and skills", "Nutrition advice and co
 
 
 ```{r}
-trt <- trt[order(trt$UnitCode, trt$values, decreasing = T), ]
 index_pivot <- index_pivot[order(index_pivot$PolicyArea, index_pivot$Score, decreasing = T), ]
 
 index_pivot$fills <- case_when(index_pivot$Score < 25 ~ "Red",
@@ -53,7 +56,6 @@ index_pivot$fills <- case_when(index_pivot$Score < 25 ~ "Red",
 
 index_pivot$fills <- factor(index_pivot$fills, levels = rev(c("Red","Orange", "Yellow", "Green")))
 
-index_pivot
 
 ggplot(index_pivot, aes(y=Score, x=PolicyArea, group=UnitCode, order(rev(fills)))) + 
   theme_gray() +
@@ -78,74 +80,5 @@ ggplot(index_pivot, aes(y=Score, x=PolicyArea, group=UnitCode, order(rev(fills))
   scale_x_discrete(limits= a, label = function(x) substr(x,1,1)) + 
   xlab("Policy area") + 
   ylab("Score (range 0 - 100)") +
-  labs(fill='Quality of policy design', group=c("1", "2")) 
-
-
-trt
-ggplot
-  
-    
+  labs(fill='Quality of policy design', group=c("1", "2"))
 ```
-
-# Heatmaps
-```{r}
-heatmap_index <- index_pivot %>% as.data.frame()
-
-heatmap_index$UnitCode <- sapply(heatmap_index$UnitCode, function(x) stringr::str_trunc(x, 30))
-
-heatmap_index <- heatmap_index %>% as.data.frame()
-
-rownames(heatmap_index) <- heatmap_index$PolicyArea
-
-heatmap_index
-
-
-index_clean
-
-index_clean <- index_clean %>% select(-UnitCode, -gjsnitt)
-
-#Make the heatmap
-all_cluster <- pheatmap::pheatmap(index_clean, 
-                                  show_rownames = T, 
-                                  cluster_cols=F, 
-                                  cluster_rows = F, 
-                                  scale = "none", 
-                                  border_colour = "black",
-                                  color = colorRampPalette(c("red", "orange", "yellow", "forestgreen"))(50),
-                                  display_numbers = T, 
-                                  number_format = "%.0f", 
-                                  cutree_rows = 3, 
-                                  number_color = "black",
-                                  legend_breaks = c(25, 50, 75, 100),
-                                  legend_labels = c("Very little or non-existing", "Low quality", "Moderate quality", "High quality"))
-
-```
-# Gauge chart
-
-```{r}
-
-mytitle <- c("GBR", "2", "3", "4", "5")
-  
-colors_border=colormap(colormap=colormaps$viridis, nshades=6, alpha=1)
-colors_in=colormap(colormap=colormaps$viridis, nshades=6, alpha=0.3)
-
-for(i in 1:6){
-
-  # Custom the radarChart !
-  radarchart(trt[1,2,i+2),], axistype=1, 
-  
-    #custom polygon
-    pcol=colors_border[i] , pfcol=colors_in[i] , plwd=4, plty=1 , 
-  
-    #custom the grid
-    cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,20,5), cglwd=0.8,
-  
-    #custom labels
-    vlcex=0.8,
-    
-    #title
-    title=mytitle[i]
-    )
-}
-```
-

@@ -11,16 +11,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r Packages, include=FALSE}
 #libraries:
-pacman::p_load(COINr, countrycode, reactable, tidyverse, read_xls, RColorBrew, readxl)
+pacman::p_load(COINr, countrycode, reactable, tidyverse, scales, RColorBrew, readxl)
 ```
 
 
 ##Input data
 ```{r load, warning=FALSE}
 
-#Import the benchmarking results to R
-Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\NOURISHING\\Primary NOURISHING benchmarking sheets - rescaled.xlsx", 
-    sheet = "All_countries_format")
+#Import the benchmarking results to R - NOURISHING
+#Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\NOURISHING\\Primary NOURISHING benchmarking sheets - rescaled.xlsx", sheet = "All_countries_format")
+
+#Import the benchmarking results to R - MOVING
+Benchmark_raw <- read_excel("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\MOVING\\Rescaled MOVING.xlsx", sheet = "all_countries_format")
 
 #List the countries that should be included in analysis
 numericals <- c("NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric")
@@ -36,13 +38,34 @@ list_ME <- Benchmark_raw %>%
 
 list_implementation <- Benchmark_raw %>% 
   filter(Indicator_type == "Implementation") %>% select(UniqueID) %>% as_vector()
+
+list_blankindicators <- Benchmark_raw %>% 
+  filter(is.na(Indicator_type)) %>% select(UniqueID) %>% as_vector()
+
+list_blankandME <- append(list_blankindicators, list_ME)
+
+list_MEandImpl <- append(list_ME, list_implementation)
+```
+
+
+# Rescaled versions of the index
+```{r}
+#rescale by answer: desired max value divided by answer options (remove one for zero)
+Benchmark_rescaled <- Benchmark_raw %>% mutate(across(numericals, ~ case_when(
+  str_detect(UniqueID,".0.0") ~ rescale(., to=c(0,80), from = c(0,100)),
+  TRUE ~ rescale(., to=c(0,20), from = c(0,100)))))
+
+Benchmark_rescaled <- Benchmark_rescaled %>% mutate_if(is_double,as.integer) %>% round_df()
+
 ```
 
 ## Transform data to COINr
 ### Indicator Data (IndData == iData)
 ```{r}
 #Select countries benchmarked and indicator ID only
-iData <- Benchmark_raw %>% select(c("UniqueID", "NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric"))
+
+#Merk, bruk rescaled eller Raw
+iData <- Benchmark_rescaled %>% select(c("UniqueID", "NO_final_numeric", "PL_final_numeric", "UK_final_numeric", "PT_final_numeric", "NL_final_numeric"))
 
 #Assign proper names
 colnames(iData) <- c("UniqueID", "Norway", "Poland", "United Kingdom", "Portugal", "Netherlands")
@@ -59,6 +82,8 @@ row.names(iData) <- NULL
 
 isCoCREATE <- c("Norway", "Netherlands", "Portugal", "Poland", "United Kingdom")
 
+iData
+
 iData <- iData %>% mutate(
   Group_Continent = countrycode(sourcevar = uName, origin="country.name", destination="continent"), 
   uCode = countryname(sourcevar = uName, destination = "iso3c"),
@@ -69,14 +94,8 @@ iData <- iData %>% mutate(
 iData %>% reactable()
 iData <- iData %>% mutate_if(is_double,as.integer)
 
-check_iData(IndData)
-
+check_iData(iData)
 ```
-
-```{r}
-colnames(iData)
-```
-
 
 ### iMeta 
 ```{r}
@@ -138,7 +157,10 @@ iMeta_full[1, ] <- c("")
 
 iMeta_full$iCode <- "Index"
 
-iMeta_full$iName <- "NOURISHING"
+##NOURISHING: 
+  # iMeta_full$iName <- "NOURISHING"
+
+iMeta_full$iName <- "MOVING"
 
 iMeta_full$Parent <- NA
 
@@ -161,40 +183,16 @@ iMeta
 check_iMeta(iMeta)
 ```
 
-
-### Weighting
-```{r}
-#0.5
-iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", iCode) ~ 0.5,
-                                             TRUE ~ as.numeric(as.vector(Weight))))
-
-#0.25
-iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", IndCode) ~ 0.25,
-                                             TRUE ~ as.numeric(as.vector(Weight))))
-
-#0.15
-iMeta <- iMeta %>% mutate(Weight = case_when(grepl(".0.0", IndCode) ~ 0.15,
-                                             TRUE ~ as.numeric(as.vector(Weight))))
-
-#0.00
-```
-
-
-
-### Build coin (new_coin)
+### Build full (new_coin)
 ```{r}
 NOURISHING <- new_coin(iData = iData,
                           iMeta = iMeta,
                           level_names = c("Indicators", 
                                           "Benchmark", 
-                                          "Policy area", "NOURISHING index"),
-                       exclude = list_ME)
+                                          "Policy area", "Index"),
+                       exclude = list_MEandImpl)
 
 NOURISHING
-```
-
-```{r}
-plot_framework(NOURISHING, colour_level = 2)
 ```
 
 
@@ -205,15 +203,118 @@ NOURISHING <- Aggregate(NOURISHING, dset = "Raw")
 
 dset_aggregated <- get_dset(NOURISHING, dset = "Aggregated")
 
-dset_aggregated %>% round_df(0) %>% reactable()
+#CHANGE MOVING/NOURISHING
+#NOURISHING
+  # dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 11))
+
+dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 7))
 ```
 
 
-## Generation of weights
-The following provides an overview of weights. In the original version, everything is weighted equally. The effective weights look like this:
+
+## Implementation only
 
 ```{r}
-get_eff_weights(NOURISHING, out2 = "df") %>% round_df(5) %>% reactable()
+
+PresenceIndex_NOURISHING <- new_coin(iData = iData,
+                          iMeta = iMeta,
+                          level_names = c("Indicators", 
+                                          "Benchmark", 
+                                          "Policy area", "Index"),
+                       exclude = list_blankandME)
+
+PresenceIndex_NOURISHING
+
+PresenceIndex_NOURISHING <- Aggregate(PresenceIndex_NOURISHING, dset = "Raw")
+
+PresenceIndex_NOURISHING_dset_aggregated <- get_dset(PresenceIndex_NOURISHING, dset = "Aggregated")
+
+PresenceIndex_NOURISHING_dset_aggregated
+
+#CHANGE MOVING/NOURISHING
+#NOURISHING
+  # PresenceIndex_NOURISHING_dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 11))
+
+#MOVING
+  PresenceIndex_NOURISHING_dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 7))
+```
+#Combination of models
+```{r}
+#CHANGE MOVING/NOURISHING
+ #NOURISHING 
+    #PresenceDF <- PresenceIndex_NOURISHING_dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 11)) 
+
+  #MOVING
+    #PresenceDF <- PresenceIndex_NOURISHING_dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 7)) #MOVING
+
+  #ALL MOVING
+    PresenceDF <- PresenceIndex_NOURISHING_dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 29))
+
+PresenceDF <- `rownames<-`(PresenceDF, PresenceDF$uCode) %>% select(-uCode)
+
+#CHANGE MOVING/NOURISHING
+ #NOURISHING 
+    #BlanksDF <- dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 11))
+
+  #MOVING
+    #BlanksDF <- dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 7))
+
+  #ALL MOVING
+    BlanksDF <- dset_aggregated %>% round_df(0) %>% select(uCode, tail(names(.), 29))
+
+BlanksDF <- `rownames<-`(BlanksDF, BlanksDF$uCode) %>% select(-uCode)
+
+ArticleModel <- PresenceDF + BlanksDF
+#write.csv(ArticleModel, "ArticleModel_crosschecked.csv")
+
+ColumnNames <- ArticleModel %>% colnames() %>% as_vector()
+
+BlanksDF
+PresenceDF
+
+ArticleModel %>% rownames_to_column(var = "Country") %>% group_by(Country)
 ```
 
+## Unpivot test
+```{r}
+#https://python-bloggers.com/2022/07/how-to-unpivot-a-dataset-in-excel-power-query-vs-r-vs-python/
+
+#names from <- header?
+#names to <- navnet på kategoriene
+#values to <- variablene som skal vise tallene
+
+pivoteering <- ArticleModel %>% rownames_to_column(var = "uCode")
+
+# CHANGE MOVING/NOURISHING
+#pivoted <- pivoteering %>% select(-Index) %>% pivot_longer(cols = c("N", "O", "U", "R", "I", "S", "H", "I.2.", "N.2.", "G"),
+ #                                       values_to = "Scores",
+ #                                        names_to = "Category")
+
+#pivoted <- pivoteering %>% select(-Index) %>% pivot_longer(cols = c("M", "O", "V", "I", "N", "G"),
+#                                        values_to = "Scores",
+#                                        names_to = "Category")
+
+
+pivoted <- pivoteering %>% pivot_longer(ColumnNames,
+                                        values_to = "Scores",
+                                        names_to = "Category")
+# CHANGE MOVING/NOURISHING
+list_PAs <- c("M", "O", "V", "I", "N", "G")
+
+
+
+#https://stackoverflow.com/questions/62472814/how-to-order-a-column-within-a-group-in-r
+#CHANGE MOVING NOURISHING, LIST PAs
+  # pivoted <- pivoted %>% mutate(Category = factor(Category, levels = list_PAs))
+
+pivoted <- pivoted %>% mutate(Category = factor(Category, levels = ColumnNames))
+
+pivoted <- pivoted %>% group_by(Category, uCode) %>% summarise(Score = Scores)
+
+```
+
+# CSV output
+```{r}
+nullhundred <- pivoted %>% write.csv(file = "MOVING-full.csv")
+```
 

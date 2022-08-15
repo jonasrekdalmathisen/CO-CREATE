@@ -117,7 +117,7 @@ AggHier <- Benchmark_raw %>% select("UniqueID", "Benchmark ID", "Policy letter")
 
 AggHier
 
-ccolnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA")
+colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA")
 
 #OLD: colnames(AggHier) <- c("UniqueID", "Agg_SubPA", "Agg_PA", "Agg_PolDim")
 
