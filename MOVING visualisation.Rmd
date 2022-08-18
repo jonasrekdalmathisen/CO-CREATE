@@ -16,7 +16,11 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r data}
-MOVING_CC <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\MOVING\\HEPA\\MOVING dataset for Hepa - five Co-Create countries.csv")
+MOVING_CC <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\R\\CO-CREATE_3\\MOVING-full-1090.csv")
+
+#MOVING_CC <- read_csv("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool - 5CC countries scoring\\MOVING\\HEPA\\MOVING dataset for Hepa - five Co-Create countries.csv")
+
+MOVING_CC
 
 colnames(MOVING_CC) <- c("PolicyArea", "UnitCode", "Score")
 
@@ -57,6 +61,8 @@ ggsave("MOVING_PA.png",
        width = 6,
        height = 4,
        dpi = 300)
+
+
 ```
 
 
@@ -69,33 +75,67 @@ colnames(benchmarks_only) <- c("Benchmark", "UnitCode", "Score")
 #Create a unique list of each benchmark
 benchmarks_only <- benchmarks_only %>% mutate(PACode = str_sub(Benchmark, 1, 1))
 
-PA_Identifier = unique(benchmarks_only$PACode)
-```
+Benchmark_Identifier = unique(benchmarks_only$Benchmark)
 
+benchmarks_only$Benchmark <- factor(benchmarks_only$Benchmark, levels = rev(Benchmark_Identifier))
+
+PA_Identifier = unique(benchmarks_only$PACode)
+
+benchmarks_only$fills <- case_when(benchmarks_only$Score < 25 ~ "Red",
+                       benchmarks_only$Score < 50 ~ "Orange",
+                       benchmarks_only$Score < 75 ~ "Yellow",
+                       benchmarks_only$Score <= 100 ~ "Green")
+
+benchmarks_only$fills <- factor(benchmarks_only$fills, levels = rev(c("Red","Orange", "Yellow", "Green")))
+
+benchmarks_only
+```
 
 
 ```{r}
 #https://silpara.medium.com/ggplot-plot-save-in-a-loop-r-4dad573b65f5
 
-benchmarks_only
-
 PA_plots <- list()
 
-PA_Identifier
-
 for(PA_ in PA_Identifier) {
-  PA_plots[[PA_]] = ggplot(benchmarks_only %>% filter(PACode == PA_), aes(x=Score, y=Benchmark, group=UnitCode)) +
-    geom_bar(stat="identity") + 
-    theme(axis.text.x = element_text(angle = 90)) + 
-    ggtitle(PA_) + 
-    ylab("Score") +
-    xlab("Benchmark") +
-    theme(plot.title = element_text(size = 32, face = "bold", hjust=0.5), axis.title.x = element_text(size = 18, face = "bold"), axis.title.y = element_text(size = 18, face = "bold"))
+  PA_plots[[PA_]] = ggplot(benchmarks_only %>% filter(PACode == PA_), aes(y=Score, x=Benchmark, group=UnitCode, order(rev(fills)))) + 
+  theme_minimal() +
+  theme(legend.position="bottom", 
+        axis.text.x = element_blank(), 
+        plot.title = element_text(size = 32, face = "bold", hjust=0.5), 
+        axis.title.x = element_text(size = 18, face = "bold"), 
+        axis.title.y = element_text(size = 18, face = "bold"),
+    #panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    #panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    panel.grid.major.y = element_blank(),
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    strip.text.x = element_text(size = 10, face = "bold"), #text of country names
+    strip.text.y = element_text(size = 10), #text of benchmarks
+    axis.ticks = element_line(colour = "black"), # ticks
+    axis.line = element_line(colour = "black"),
+    line =  element_line(colour = "black"),
+    panel.border = element_rect(colour = "black", fill = NA),
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  ) + 
+  facet_grid(~ UnitCode, labeller = labeller(UnitCode = 
+    c("GBR" = "United Kingdom",
+      "NLD" = "The Netherlands",
+      "NOR" = "Norway",
+      "POL" = "Poland",
+      "PRT" = "Portugal"))) + 
+  geom_bar(position = "dodge", stat="identity", colour = "black", width=0.45, aes(fill=fills)) +
+  scale_fill_manual(values = rev(c("Red","Orange", "Yellow", "Green")), labels= rev(c("Poor", "Low", "Moderate", "High"))) +
+  coord_flip() + 
+  xlab("Benchmark") + 
+  ylab("Score (range 0 - 100)") +
+  labs(fill='Quality of policy design', group=c("1", "2"))
   print(PA_plots[[PA_]])
-  ggsave(PA_plots[[PA_]], file=paste0("plot_", PA_,".png"), width = 44.45, height = 27.78, units = "cm", dpi=300)
+  #ggsave(PA_plots[[PA_]], file=paste0("plot_", PA_,".png"), width = 44.45, height = 27.78, bg='transparent', units = "cm", dpi=150)
 }
-
 ```
+
 
 
 ```{r}
