@@ -298,6 +298,7 @@ pivoteering <- ArticleModel %>% rownames_to_column(var = "uCode")
 pivoted <- pivoteering %>% pivot_longer(ColumnNames,
                                         values_to = "Scores",
                                         names_to = "Category")
+
 # CHANGE MOVING/NOURISHING
 list_PAs <- c("M", "O", "V", "I", "N", "G")
 
@@ -311,10 +312,100 @@ pivoted <- pivoted %>% mutate(Category = factor(Category, levels = ColumnNames))
 
 pivoted <- pivoted %>% group_by(Category, uCode) %>% summarise(Score = Scores)
 
+pivoted <- 
+  pivoted %>%
+  mutate(Score,
+              Outcome = case_when(
+                      Score < 1 ~ "No policy identified",  
+                      Score < 25 ~ "Poor",
+                      Score < 50 ~ "Low", 
+                      Score < 75 ~ "Moderate", 
+                      Score <= 100 ~ "High"))
+
+
+pivoted
 ```
 
 # CSV output
 ```{r}
 nullhundred <- pivoted %>% write.csv(file = "MOVING-full.csv")
+```
+
+# Correlation of ranks 
+
+First, we create the categories that should be correlated.
+```{r}
+Blanks_CategoryScore <- BlanksDF
+Presence_CategoryScore <- PresenceDF
+Combined_CategoryScore <- ArticleModel
+
+Blanks_CategoryScore <- 
+  Blanks_CategoryScore %>%
+  mutate(across(where(is.double), 
+                ~ case_when(
+                      . < 25 ~ 1, #Poor
+                       . < 50 ~ 2, #Low
+                       . < 75 ~ 3, #Moderate
+                       . <= 100 ~ 4))) #High
+
+Blanks_CategoryScore <- Blanks_CategoryScore %>% mutate_if(is_double,as.numeric)
+
+Presence_CategoryScore <- 
+  Presence_CategoryScore %>%
+  mutate(across(where(is.double), 
+                ~ case_when(
+                      . < 25 ~ 1, #Poor
+                       . < 50 ~ 2, #Low
+                       . < 75 ~ 3, #Moderate
+                       . <= 100 ~ 4))) #High
+
+Presence_CategoryScore <- Presence_CategoryScore %>% mutate_if(is_double,as.numeric)
+
+Combined_CategoryScore <- 
+Combined_CategoryScore  %>%
+  mutate(across(where(is.double), 
+                ~ case_when(
+                      . < 25 ~ 1, #Poor
+                       . < 50 ~ 2, #Low
+                       . < 75 ~ 3, #Moderate
+                       . <= 100 ~ 4))) #High
+
+Combined_CategoryScore <- Combined_CategoryScore %>% mutate_if(is_double,as.numeric)
+
+Combined_CategoryScore
+Presence_CategoryScore
+```
+
+Second, we do the correlations. In this case, I will use {`r Presence_CategoryScore`} and {`r Combined_CategoryScore`} to showcase. Note, if the categories are all "Poor" in one column, NA is returned as result. I guess this means perfect correlation but this is not captured in figure or table below.
+
+```{r}
+corr_Presence_vs_Combined <- cor(Presence_CategoryScore, Combined_CategoryScore, method = "kendall" ,  ) %>% as.data.frame()
+
+df <- list()
+for (i in seq_len(nrow(corr_Presence_vs_Combined))){
+  ba <- rep(NA, nrow(corr_Presence_vs_Combined))
+  ba[i] <- corr_Presence_vs_Combined[i,i]
+  df[[i]] <- ba
+}
+
+corr_Presence_vs_Combined <- as.data.frame(df, col.names = names(corr_Presence_vs_Combined), row.names = names(corr_Presence_vs_Combined))
+
+
+corr_Presence_vs_Combined %>% reactable()
+```
+
+```{r}
+ggcorrplot(corr_Presence_vs_Combined, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=T, lab_size = 2, show.legend = T, show.diag = T)
+```
+
+
+
+```{r, include=FALSE}
+#Here is a script to order the results, should you change the standard order. You need to change the variable names.
+  # xresults_simple_ranks <- results_simple_ranks[order(results_simple_ranks$'UnitCode'),] %>% `rownames<-`(c())
+  # xresults_simple_ranks <- column_to_rownames(xresults_simple_ranks, var = "UnitCode")
+  # xresults_simple_ranks <- xresults_simple_ranks %>% select(-UnitName)
+
 ```
 

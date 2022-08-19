@@ -1,0 +1,82 @@
+---
+title: "Rank correlating using different models"
+author: "Jonas Rekdal Mathisen"
+date: "31/05/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+```
+
+```{r Packages}
+#libraries:
+pacman::p_load(COINr, ggbiplot, countrycode, reactable, tidyverse, RColorBrewer, readxl, ggplot2, corrr, ggcorrplot)
+```
+
+
+```{r}
+#Import the benchmarking results to R
+online_ranks <- read_excel("korell.xlsx", 
+    sheet = "online")
+
+
+benchmark_ranks <- read_excel("korell.xlsx", 
+    sheet = "benchmark")
+
+```
+
+#Initialisation
+This script is copied from NOURISHING_PI_full.Rmd.
+
+
+## Correlation policy level ranks and aggregate index
+```{r}
+all_onl <- online_ranks %>% as.data.frame()
+
+all_onl <- all_onl[order(all_onl$'Country'),] %>% `rownames<-`(c())
+
+all_onl <- column_to_rownames(all_onl, var = "Country")
+
+
+#Same for complex
+all_bench <- benchmark_ranks %>% as.data.frame()
+
+all_bench <- all_bench[order(all_bench$'Country'),] %>% `rownames<-`(c())
+
+all_bench <- column_to_rownames(all_bench, var = "Country")
+
+
+x <- cor(all_onl, all_bench, method = "kendall",  ) %>% as.data.frame()
+
+x
+
+df <- list()
+for (i in seq_len(nrow(x))){
+  ba <- rep(NA, nrow(x))
+  ba[i] <- x[i,i]
+  df[[i]] <- ba
+}
+
+x_select <- as.data.frame(df, col.names = names(x), row.names = names(x))
+
+p.mat <- cor_pmat(x, method = "kendall") %>% as.data.frame()
+
+df <- list()
+for (i in seq_len(nrow(p.mat))){
+  ba <- rep(NA, nrow(p.mat))
+  ba[i] <- p.mat[i,i]
+  df[[i]] <- ba
+}
+
+p.mat <- as.data.frame(df, col.names = names(p.mat), row.names = names(p.mat))
+
+p.mat
+
+ggcorrplot(x, ggtheme = ggplot2::theme_gray,
+  colors = c("#6D9EC1", "white", "#476930"), outline.color = "black", lab=TRUE, lab_size=2, show.legend = F, show.diag = T)
+
+
+```

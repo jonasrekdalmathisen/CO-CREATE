@@ -1,0 +1,579 @@
+---
+title: "Implementation of healthy eating policies: an 11 country pilot study using the NOURISHING framework"
+author: "Jonas Rekdal Mathisen"
+date: "30/06/2022"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+## Aim
+In this paper, we use the NOURISHING framework and policy database to assess the implementation of healthy eating policies for 11 countries in Europe. 
+
+There is limited knowledge of implemented nutrition policies in Europe. The aim of this report is to showcase index construction by providing an overview of implemented policies in different European countries, and identify any similarities or clusters of policies between European countries. A simple regression displaying the index against obesity rates in European countries is included. 
+
+## Limitations
+* The WCRF data is not complete at this time. 
+* The current analysis does not assess quality or count of policies, only if a policy -AT ALL- is implemented in the given dimension at all. No judgement to the policy's success is evaluated. 
+
+## Findings
+The findings indicate an overall low implementation of nutrition policies across European countries using the NOURISHING framework. A country may have multiple policies but an holistic approach to the policy landscape is missing. 
+
+For future index construction, the low policy coverage may pose a problem for an index using the benchmarks. This can affect aggregation, hence a scoreboard may be a better approach than an overall index. More investigation is necessary: correlation between aggregation levels, principal components analyses and sensitivity analyses. 
+
+ 
+# Data
+The data is manipulated in R prior to analyses. The following packages are utilised:
+
+```{r Packages, include=FALSE}
+#libraries:
+pacman::p_load(COINr, countrycode, reactable, tidyverse, read_xls, Pheatmap, RColorBrew, readxl)
+```
+
+
+
+* Tidyverse is used to manipulate the data. 
+* COINr from the JRC is used to assemble and aggregate the data. 
+* Pheatmap is used for the cluster analyses.
+* Reactable for making tables more user-friendly.
+* RColorBrew for colourful tables.
+* Countrycode for transforming country names into codes, and vice-versa.
+
+## WCRF policy database
+Data is retrieved from the backend of the NOURISHING policy framework. The data was provided by the WCRF 27.06.2022.
+
+```{r}
+BenchmarkMeta <- read_xlsx("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\DATABASE MANAGEMENT\\NOURISHING full fixed.xlsx", sheet = "Benchmarks")
+
+BenchmarkMeta
+
+colnames(BenchmarkMeta) <- c("PolicyAreaID", "PolicyArea", "BenchmarkID", "SubPArea", "UniqueID", "Indicator name")
+
+BenchmarkMeta <- BenchmarkMeta %>% mutate(PolicyAreaID = replace(PolicyAreaID, PolicyAreaID=="N", "N(1)"))
+
+BenchmarkMeta <- BenchmarkMeta %>% mutate(PolicyAreaID = replace(PolicyAreaID, PolicyAreaID=="I", "I(1)"))
+
+AggHiearchy <- BenchmarkMeta %>% distinct(SubPArea, BenchmarkID, PolicyArea, PolicyAreaID)
+
+BenchmarkMeta %>% reactable()
+```
+
+
+```{r loadGPI}
+policydb <- read_xlsx("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\DATABASE MANAGEMENT\\NOURISHING full fixed.xlsx", sheet = "Full NOURISHING")
+
+policies <- policydb %>% select(1:5, BENCHMARK, POLICYIDENTIFIER_R, "ASSOCIATED BENCHMARKS", "IMPLEMENTATION YEAR", "PolicyLevel", "POLICY DESCRIPTION", `Policy expired (year)`)
+
+
+#Select finalised countries 
+policies <- policies %>% filter(!is.na(BENCHMARK), is.na(`Policy expired (year)`), `ACTION OR EVALUATION` == "Policy Action", PolicyLevel == "National" || "International")
+
+
+#Make a text list of constituent countries for (UK) loop
+ConstituentsUK <- policies %>% filter(COUNTRY == "UK") %>% select(`CONSTITUENT COUNTRY`) %>% distinct() %>% drop_na() %>% as.list()
+
+#The list of UK level policies that should exist for each constituent country. Each row here should be x*constituent countries existing.
+onlyUK <- policies %>% filter(COUNTRY == "UK" & is.na(`CONSTITUENT COUNTRY`))
+
+#Constituencies <- policies %>% filter(!is.na(`CONSTITUENT COUNTRY`))
+#Constituencies <- Constituencies %>% select(-COUNTRY) %>% rename("COUNTRY" = "CONSTITUENT COUNTRY")
+
+#Replace UK wide policies with constituent names. These are added to the full policy db.
+for (i in ConstituentsUK){
+  UKpoliciesASconstituents <- onlyUK %>% 
+    slice(rep(1:n(), 4)) %>% 
+    arrange(`POLICYIDENTIFIER_R`)
+  
+  i <- UKpoliciesASconstituents$COUNTRY[UKpoliciesASconstituents$COUNTRY == "UK"] <- i
+}
+
+
+#Make constituent countries (UK) independent from country
+onlyConstituents <- policies %>% filter(COUNTRY == "UK" & !is.na(`CONSTITUENT COUNTRY`)) %>% select(-COUNTRY) %>% rename(COUNTRY = `CONSTITUENT COUNTRY`)
+
+#Drop the rows with host country + constituent
+policies <- policies %>% filter(is.na(`CONSTITUENT COUNTRY`))
+
+#Combine the data again with constituent countries as separate entities 
+all_policies <- bind_rows(policies, UKpoliciesASconstituents, onlyConstituents)
+
+
+#Remove UK subcountries
+
+isConstituent <- c("England", "Scotland", "Wales" ,"Northern Ireland")
+
+
+all_policies <- all_policies %>% filter(!COUNTRY %in% isConstituent)
+
+all_policies
+```
+
+# Descriptive stats
+
+Note, the constituent countries of UK is calculated as UK policies + constituent country policies. We currently have data for `r all_policies %>% distinct(COUNTRY) %>% count()` countries (`r all_policies %>% distinct(COUNTRY) %>% as.list()`). EU policies are listed within the country.
+```{r}
+all_policies %>% count(COUNTRY) %>% 
+  reactable(filterable = TRUE,
+            columns = list(
+              n = colDef(filterable = FALSE, defaultSortOrder = "desc")
+            ),
+            defaultSorted = c("n", "COUNTRY")
+            )
+```
+
+# The NOURISHING framework
+The framework has 10 policy areas and 43 benchmarks. 
+
+```{r}
+BenchmarkMeta %>% select(-UniqueID) %>% reactable()
+```
+
+```{r}
+#Get unique identifier
+onlySPA_ID <- BenchmarkMeta %>% select(`BenchmarkID`) 
+
+onlySPA_ID <- `colnames<-`(onlySPA_ID, c("BENCHMARK"))
+
+#Find distinct countries
+countries <- all_policies$COUNTRY %>% as.data.frame() %>% distinct()
+names(countries) <- "COUNTRY"
+
+#Create an empty table for analysis
+qwe <- transpose(onlySPA_ID) %>% as.data.frame() 
+
+names(qwe) <- qwe[1,]
+
+framework <- cbind(qwe, countries) %>% as.data.frame()
+
+framework <- framework %>% mutate(across(!COUNTRY, ~as.double(na_if(., .))))
+
+```
+
+## iData prep - base
+
+```{r}
+
+#Count the number of policies per country and policy area
+Number_Policies <- all_policies %>% count(COUNTRY, BENCHMARK)
+
+
+#Make TRUE or FALSE for each policy existing
+truef_spa <- Number_Policies %>% mutate(
+  PolicyActionImplemented = if_else(n > 0, TRUE, FALSE, missing=FALSE)
+)
+
+#Transform data to numeric value from 0, 100
+SPA_level_TF <- truef_spa %>%
+  select("COUNTRY", "BENCHMARK","PolicyActionImplemented") %>% 
+  select(c("COUNTRY", "BENCHMARK")) %>% distinct() %>%
+  pivot_wider(names_from = "BENCHMARK", values_from = "BENCHMARK") %>%
+  ungroup() %>%
+  mutate(
+    across(.cols = -COUNTRY, 
+           ~if_else(!is.na(.), 100, 0)
+    )
+  )
+
+
+#Join the empty frame with the transformed data to ensure all benchmarks are included in the final table
+Presence_100 <- right_join(framework, SPA_level_TF, by.x=COUNTRY, by.y=COUNTRY)
+
+#Make NA values into 0 for non-identified policy
+Presence_100 <- Presence_100 %>% mutate(across(where(is_double), ~replace_na(., 0)))
+
+Presence_100 %>% reactable()
+
+```
+
+## iData - OK
+
+```{r COINbase}
+COINr_SPA <- Presence_100
+
+names(Presence_100)[names(Presence_100) == "COUNTRY"] <- "uName"
+
+#Remove constituents
+Presence_100 <- Presence_100 %>% filter(!uName %in% isConstituent)
+
+COINr_SPA <- Presence_100 %>% mutate(uCode = countrycode(sourcevar = uName, origin="country.name", destination="iso3c"))
+
+#Some values are missing: Gulf Cooperation Council, Micronesia, Romania, Wallis and Futuna
+
+Missing <- COINr_SPA %>% subset(is.na(uCode)) %>% select(uName, uCode)
+COINr_SPA <- na.omit(COINr_SPA)
+
+COINr_SPA <- COINr_SPA %>% mutate(
+  Group_Continent = countrycode(sourcevar = uName, origin="country.name", destination="continent"), 
+  #Group_EU = countrycode(sourcevar = uName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = uName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(uCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+
+isCoCREATE <- c("NOR", "NLD", "PRT", "POL", "GBR")
+
+#Continue adding groups for countries 
+#COINr_SPA <- COINr_SPA %>% mutate(uCode = case_when(
+#  uName == "Scotland" ~ "SCT",
+ # uName == "Northern Ireland" ~ "NIR",
+  #uName == "England" ~ "ENG",
+  #uName == "Wales" ~ "WAL",
+  #uName == "Norway" ~ "NOR")) 
+
+COINr_SPA <- na.omit(COINr_SPA)
+
+#Consider adding certain variables etc for further analysis (eurostat stuff)
+
+iData <- COINr_SPA
+
+iData <- iData %>% mutate_if(is_double,as.integer)
+
+check_iData(iData)
+
+iData
+```
+
+## Include statistical groups
+
+You can add anything to this. I just did this as an example for further analyses. 
+```{r}
+hlth_ehis_bm1e <- eurostat::get_eurostat("hlth_ehis_bm1e")
+
+BMI_cat <- hlth_ehis_bm1e %>% select(bmi) %>% distinct()
+
+hlth_ehis_bm1e$year <- str_sub(hlth_ehis_bm1e$time,1,4)
+
+BMI_euro <- hlth_ehis_bm1e %>% filter(sex=="T" & age=="TOTAL" & isced11=="TOTAL" & bmi=="BMI_GE30" & year=="2019") %>% select(geo, values)
+
+BMI_euro <- BMI_euro %>% mutate(geo2= countrycode(sourcevar = geo, origin="eurostat", destination="iso3c")) %>% select(geo2, values)
+
+BMI_euro <- BMI_euro %>% drop_na()
+
+colnames(BMI_euro) <- c("uCode", "Group_BMI_rate")
+
+GBR_obese <- c("GBR", 28) #GBR is excluded from Eurostat. Manual imputated from UK National Stats service. 
+
+BMI_euro <- rbind(BMI_euro, GBR_obese)
+
+BMI_euro <- BMI_euro %>% mutate(across(Group_BMI_rate, as.integer))
+
+#Join obesity rate by uCode to Groups iData
+iData <- left_join(iData, BMI_euro, by="uCode", keep=F)
+```
+
+
+## New iMeta combined with AggMeta
+
+```{r}
+##Groups
+Groups <- iData %>% select(starts_with(c("Group_"))) %>% colnames() %>% as.data.frame()
+
+colnames(Groups) <- c("iCode")
+
+Groups$iName <- "Group info"
+
+Groups$Parent <- NA
+
+Groups$Level <- NA
+
+Groups$Type <- "Group" 
+
+###Level 1 
+iMeta_Indicators <- BenchmarkMeta %>% select(BenchmarkID, SubPArea, PolicyAreaID)
+
+colnames(iMeta_Indicators) <- c("iCode", "iName", "Parent")
+
+iMeta_Indicators$Level <- 1
+
+iMeta_Indicators$Type <- "Indicator"
+
+###Level 2: policy area
+iMeta_PolicyArea <- BenchmarkMeta %>% select(PolicyAreaID, PolicyArea) %>% distinct()
+
+colnames(iMeta_PolicyArea) <- c("iCode", "iName")
+
+iMeta_PolicyArea$Parent <- "Index"
+
+iMeta_PolicyArea$Level <- 2
+
+iMeta_PolicyArea$Type <- "Aggregate" 
+
+iMeta_PolicyArea
+
+###Level 3: index
+iMeta_full <- data.frame()
+
+iMeta_full[1, ] <- c("")
+
+iMeta_full$iCode <- "Index"
+
+iMeta_full$iName <- "NOURISHING"
+
+iMeta_full$Parent <- NA
+
+iMeta_full$Level <- 3
+
+iMeta_full$Type <- "Aggregate"
+
+list_iMeta <- list(Groups, iMeta_Indicators, iMeta_PolicyArea, iMeta_full)
+
+iMeta <- do.call("rbind", list_iMeta)
+
+##For everything
+iMeta$Direction <- 1 #All indicators got positive direction
+iMeta$Weight <- 1 #All indicators carry the same weight
+
+iMeta <- iMeta %>% as.data.frame()
+
+iMeta
+
+check_iMeta(iMeta)
+
+```
+
+## Build COIN
+
+```{r}
+PresenceIndex <- new_coin(iData = iData,
+                          iMeta = iMeta,
+                          level_names = c("Sub-policy areas", "Policy areas", "NOURISHING index"))
+
+PresenceIndex
+```
+
+```{r}
+plot_framework(PresenceIndex, type = "stack", colour_level = 2)
+```
+
+## Aggregation
+
+A central step to create an index is the aggregation method. We do not want total compensability because being good in one area should not compensate for implementing less in another area. 
+
+In the first aggregation step, from indicator to policy area (e.g: from R1 to R) we use the arithmetic mean (simple averages). 
+
+The aggregation can be read left to right. The last column, NOURISHING, displays the total score for the index. Results are presented on the next page.
+
+```{r Aggregation}
+PresenceIndex <- Aggregate(PresenceIndex, dset = "Raw")
+
+dset_aggregated <- get_dset(PresenceIndex, dset = "Aggregated")
+
+dset_aggregated %>% round_df(0) %>% reactable()
+```
+
+
+## Visualisation of results
+```{r}
+plot_bar(PresenceIndex, dset = "Aggregated", iCode = "Index", by_group = "Group_Region")
+```
+## Test of scatter: final index score versus BMI rate in given country. 
+```{r}
+plot_scatter(PresenceIndex, dsets = c("Aggregated", "uMeta"), iCodes = c("Index", "Group_BMI_rate"), point_label = "uCode") 
+```
+
+# Cluster analyses 
+
+The vast number of indicators and dimensions may make it hard to see patterns. The following analyses, we try to make two clusters: one for benchmarks and one for policy areas (as columns), with countries as the row. 
+
+## Policy area analysis
+
+```{r}
+#Prepare data
+Aggregates <- getResults(NPI, tab_type = "Aggregates") 
+
+Aggregates <- Aggregates %>% mutate(
+  Group_Continent = countrycode(sourcevar = uName, origin="country.name", destination="continent"), 
+  Group_EU = countrycode(sourcevar = uName, origin="country.name", destination="eu28"),
+  Group_Region = countrycode(sourcevar = uName, origin="country.name", destination="un.regionsub.name"), 
+  Group_COCREATE = case_when(uCode %in% unlist(isCoCREATE) ~ TRUE, TRUE ~ FALSE))
+
+Aggregates <- Aggregates %>% mutate(Group_EU = case_when(
+  uName == "NOR" ~ "EU", 
+  uName == "ISL" ~ "EU", 
+  uName == "LIE" ~ "EU",
+  uName == "CHE" ~ "EU",
+  TRUE ~ Group_EU)
+)
+
+#Data without text
+NumericalsOnly <- Aggregates
+
+rownames(NumericalsOnly) <- sapply(Aggregates$uName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+NumericalsOnly <- NumericalsOnly %>% select(-Rank, -NOURISHING, -uName, -uCode, -Group_EU, -Group_COCREATE, -Group_Region, -Group_Continent)
+
+#Make unique group for visualisation
+Regions <- Aggregates %>% select(Group_Region)  
+
+rownames(Regions) = rownames(NumericalsOnly) 
+
+```
+
+
+The results for each policy area is set to divide into five categories of countries and three categories of policy areas. 
+
+* UK is the clear 'winner' in all policy areas, but are weakest in the policy areas U and R. They are strongest in N.2, followed-by = and I.2.
+* The country with the weakest implementation seems to be Bulgaria.
+* CO-CREATE countries perform strongly with the exception of Poland and the Netherlands.
+* Country region does not seem to influence implementation at first glance.
+* It is evident that letter N is the most implemented of all policy areas (1st column)
+* The policy areas G, S, H, U and R are the least implemented areas overall for the European countries.
+* N.2. is not covere at all by over half the countries included in the analyses.
+
+```{r Remove0fromDisplay}
+NumericalsOnly2 <- NumericalsOnly %>% roundDF(decimals=1)
+
+NumericalsOnly2[NumericalsOnly2 < 0.01] <- NA
+NumericalsOnly2[is.na(NumericalsOnly2)] <- ""
+
+
+
+```
+
+
+```{r, fig.height=8, fig.width=15, fig.align='center'}
+library("RColorBrewer")
+
+Presence_100
+
+pheatmap::pheatmap(NumericalsOnly, cluster_cols = T, main="Clustering of countries by policy area", cutree_rows=3, cutree_cols=3, annotation_row = Regions, display_numbers = NumericalsOnly2, color=colorRampPalette(c("snow3", "yellowgreen", "forestgreen"))(50))
+
+```
+
+## Sub-policy area analysis
+
+```{r}
+#Prepare data
+AggregatesSubP <- getResults(NPI, tab_type = "Full")
+
+#Data without text
+NumericalsSuBPOnly <- AggregatesSubP
+
+rownames(NumericalsSuBPOnly) <- sapply(NumericalsSuBPOnly$uName,function(x) strsplit(as.character(x),split = "\\\\")[[1]][1])
+
+NumericalsSuBPOnly <- NumericalsSuBPOnly %>% select(-Rank, -NOURISHING, -uName, -uCode, -Group_EU, -Group_COCREATE, -Group_Region, -Group_Continent, -N, -O, -U, -R, -I, -S, -H, -"I.2.", -"N.2.", -G)
+
+##ALTERNATIV
+#Due to Pheatmap categories, I need to transpose the table to get the column annotation
+trans_NumericalsSuBPOnly <- NumericalsSuBPOnly %>% t() %>% as.data.frame()
+
+Dimensions <- AggHiearchy %>% select(BenchmarkID, PolicyAreaID) %>% as.data.frame()
+
+Dimensions <- Dimensions %>% mutate(across("BenchmarkID", str_replace, "\\(", "."))
+
+Dimensions <- Dimensions %>% mutate(across("BenchmarkID", str_replace, "\\)", "."))
+
+
+#Add PolicyID and BenchmarkID
+trans_NumericalsSuBPOnly <- left_join(trans_NumericalsSuBPOnly %>% mutate(BenchmarkID = rownames(trans_NumericalsSuBPOnly)), Dimensions, by = "BenchmarkID") 
+
+trans_NumericalsSuBPOnly <- trans_NumericalsSuBPOnly %>% column_to_rownames("BenchmarkID")
+
+SubPAz <- trans_NumericalsSuBPOnly %>% select(PolicyAreaID)
+
+NumericalsSuBPOnly <- trans_NumericalsSuBPOnly %>% select(-PolicyAreaID) %>% t() %>% as.data.frame()
+
+simplified_index_cc <- NumericalsSuBPOnly %>% filter(rownames(NumericalsSuBPOnly) %in% c("Norway", "Poland", "Netherlands", "Portugal", "UK"))
+
+```
+
+
+When using the sub-policy areas to explore differences, the country ranking changes. 
+
+
+Important! These variables are "Yes" or "No": hence the colour is either red for Implemented, or blue for Not implemented.   
+
+```{r, fig.align='center', fig.height=8, fig.width=15}
+pheatmap::pheatmap(NumericalsSuBPOnly, cluster_cols = T, cluster_rows = T, main="Clustering of countries by benchmarks", cutree_rows=4, cutree_cols=3, annotation_col = SubPAz, legend = F, color = colorRampPalette(c("snow3", "forestgreen"))(50))
+
+```
+
+# Regression
+There are multiple approaches to using the final index score. An important prerequisite is a sound construction of the index. This will take some time to ensure and may end up not being feasible. 
+
+The regression can be used for a specific policy area (e. g., Nutrition labelling or Restricting marketing), or the full index. Both approaches should be explored. Note, there is less variance in some areas than others that we need to investigate closer.
+
+## Get data on obesity
+We can retrieve any data from Eurostat or other sources. Here, I use Obesity statistics for the full population in European countries. 
+```{r GetEurostat}
+library(stringr)
+
+hlth_ehis_bm1e <- eurostat::get_eurostat("hlth_ehis_bm1e")
+
+BMI_cat <- hlth_ehis_bm1e %>% select(bmi) %>% distinct()
+
+hlth_ehis_bm1e$year <- str_sub(hlth_ehis_bm1e$time,1,4)
+
+BMI_euro <- hlth_ehis_bm1e %>% filter(sex=="T" & age=="TOTAL" & isced11=="TOTAL" & bmi=="BMI_GE30" & year=="2019") %>% select(geo, values)
+
+BMI_euro <- BMI_euro %>% mutate(geo2= countrycode(sourcevar = geo, origin="eurostat", destination="iso3c")) %>% select(geo2, values)
+
+colnames(BMI_euro) <- c("uCode", "Obesity rate")
+
+BMI_euro %>% reactable::reactable()
+
+```
+## Link index with data
+After retriving the data from Eurostat, we combine the data from NOURISHING and the selected data source. Note, LIE has missing data. Data from different sources imported for GBR and CHE. For a final analysis, we should use HSBC or something else.
+
+```{r Indexjoin}
+IndexScore_geo <- getResults(NPI, tab_type = "Summ") %>% select(uCode, NOURISHING)
+
+IndexScore_geo <- left_join(IndexScore_geo, BMI_euro, by = c("uCode" ="uCode"))
+
+#Add some missing data for this exercise. This data is not cross-checked!
+IndexScore_geo <- IndexScore_geo %>% mutate("Obesity rate" = replace(`Obesity rate`, uCode=="GBR", 28))
+IndexScore_geo <- IndexScore_geo %>% mutate("Obesity rate" = replace(`Obesity rate`, uCode=="CHE", 11.3))
+
+IndexScore_geo %>% reactable::reactable(compact=T)
+
+```
+
+## Regression line
+Creating a fitted line we find that there is a positive relationship between higher implementation of nutrition policies and obesity rates. 
+
+No significant correlation between index and obesity rates identified (p=0.35).
+
+```{r regline}
+regline <- IndexScore_geo %>% filter(!is.na(`Obesity rate`)) %>% lm(NOURISHING ~ `Obesity rate`,.) %>% fitted.values()
+
+corell <- cor.test(IndexScore_geo$NOURISHING, IndexScore_geo$`Obesity rate`, method = "pearson")
+
+corell
+
+x <- IndexScore_geo$NOURISHING
+y <- IndexScore_geo$`Obesity rate`
+
+```
+## Regression plot
+Create a scatterplot with NOURISHING score on the vertical axis, and obesity rate on the horizontal axis:
+
+```{r plotit2, warning=F}
+
+meanNourish <- mean(IndexScore_geo$NOURISHING)
+
+plot <- IndexScore_geo %>% filter(!is.na(`Obesity rate`)) %>%
+  plotly::plot_ly(x=~`Obesity rate`, y= ~NOURISHING, mode="markers", text =~uCode) %>%
+  plotly::add_markers(y= ~NOURISHING) %>%
+  plotly::add_trace(x=~`Obesity rate`, y=regline, mode="lines") %>%
+  plotly::add_lines(y=meanNourish) %>%
+  plotly::layout(showlegend=F) %>%
+  plotly::add_text(textposition="top right")
+
+
+plot
+```
+
+# Annex 1: Codes
+```{r, echo=F}
+
+IndMeta %>% select(PolicyArea, IndName, IndCode) %>% reactable(compact=T, searchable = T)
+```
