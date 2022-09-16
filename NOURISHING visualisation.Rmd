@@ -81,11 +81,11 @@ ggplot(index_pivot, aes(y=Score, x=fct_rev(PolicyArea), group=factor(UnitCode), 
   ylab("Score (range 0 - 100)") +
   labs(fill='Quality of policy design', group=c("1", "2"))
 
-ggsave("MOVING_PA.png", 
+ggsave("NOURISHING_PA.png", 
        plot=last_plot(),
        width = 6,
        height = 4,
        dpi = 300)
-
-
 ```
+
+
