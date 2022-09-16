@@ -10,75 +10,82 @@ Try executing this chunk by clicking the *Run* button within the chunk or by pla
 ```{r Packages, include=FALSE}
 #libraries:
 pacman::p_load(tidyverse, readxl, viridis, pheatmap, RColorBrewer, fmsb, hrbrthemes, viridis, colormap)
-
-
 ```
 
 ```{r}
 #Read excel with data
-index <- read_xlsx("index med kategorier unpivoted.xlsx", sheet = "Sheet9")
+#index <- read_xlsx("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\Dokumenter\\CO-CREATE\\R\\CO-CREATE_3\\index med kategorier unpivoted.xlsx", sheet = "Sheet9")
+
+index <- read_xlsx("C:\\Users\\JRMA\\OneDrive - Folkehelseinstituttet\\WP2 & 3 collaboration\\Benchmarking tool NOURISHING & MOVING\\NOURISHING\\NOURISHING Working documents\\NOURISHING benchmarking tool .xlsx", sheet = "all_countries_aggregated")
+
+index <- index %>% select('Policy letter', 'Benchmark ID', 'Country', 'Sum of Presence and Attribute scores')
+
+colnames(index) <- c("PolicyArea", "Benchmark ID", "UnitCode", "Score")
+
+index
+
+COCREATE <- c("UK", "NL", "NO", "PL", "PT")
+
+index <- index %>% filter(UnitCode %in% COCREATE)
+
+index_pivot <- index %>% group_by(UnitCode, PolicyArea) %>% summarise(Score = round(mean(Score),0))
+
 
 #Pivot the data: 
-index_pivot <- index %>% pivot_longer(c("GBR", "PRT", "POL", "NOR", "NLD"), names_to = "Countries", values_to = "values")
+#index_pivot <- index %>% pivot_longer(c("GBR", "PRT", "POL", "NOR", "NLD"), names_to = "Countries", values_to = "values")
 
 #Make column names
-colnames(index_pivot) <- c("PolicyArea", "UnitCode", "Score")
+#colnames(index_pivot) <- c("PolicyArea", "UnitCode", "Score")
 
-index_pivot
+
 ```
 
 ```{r}
 
-orderlist <- index_pivot %>% select(PolicyArea) %>% distinct() %>% as_vector()
-
-orderlist
+orderlist <- c("N", "O", "U", "R", "I", "S", "H", "I(2)", "N(2)", "G")
 
 index_pivot$PolicyArea <- factor(index_pivot$PolicyArea, levels = orderlist)
 
-PolicyAreas <- c("Give nutrition education and skills", "Nutrition advice and counselling in health care settings" , "Inform people about food and nutrition through public awareness", 
-"Harness food supply chain and actions across sectors to ensure coherence with health",
-"Set incentives and rules to create a healthy retail and food service environment", 
-"Improve nutritional quality of the whole food supply", 
-"Restrict food advertising and other forms of commercial promotion", 
-"Use economic tools to address food affordability and purchase incentives", 
-"Offer healthy food and set standards in public institutions and other specific settings", 
-"Nutrition label standards and regulations on the use of claims and implied claims on food")
+index_pivot$UnitCode <- factor(index_pivot$UnitCode, levels = COCREATE)
+
+index_pivot %>% filter(PolicyArea == "U")
 ```
 
 
 ```{r}
-index_pivot <- index_pivot[order(index_pivot$PolicyArea, index_pivot$Score, decreasing = T), ]
+index_pivot <- index_pivot[order(rev(index_pivot$PolicyArea), index_pivot$Score, decreasing = T), ]
 
-index_pivot$fills <- case_when(index_pivot$Score < 25 ~ "Red",
+index_pivot$fills <- case_when(
+                       index_pivot$Score < 25 ~ "Red",
                        index_pivot$Score < 50 ~ "Orange",
                        index_pivot$Score < 75 ~ "Yellow",
-                       index_pivot$Score < 100 ~ "Green")
+                       index_pivot$Score <= 100 ~ "Green")
 
 index_pivot$fills <- factor(index_pivot$fills, levels = rev(c("Red","Orange", "Yellow", "Green")))
 
 
-ggplot(index_pivot, aes(y=Score, x=PolicyArea, group=UnitCode, order(rev(fills)))) + 
+ggplot(index_pivot, aes(y=Score, x=fct_rev(PolicyArea), group=factor(UnitCode), order(rev(fills)))) + 
   theme_gray() +
   theme(axis.text.y = element_text(size = 11, face = "bold"), legend.position="bottom") + 
-  #annotate("rect", ymin=0,ymax=25, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "red") + 
-  #annotate("rect", ymin=25,ymax=50, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "orange") +
-  #annotate("rect", ymin=50,ymax=75, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "yellow") +
-  #annotate("rect", ymin=75,ymax=100, xmin = 0, xmax = 10.5, alpha = 0.2, fill = "green") +
   facet_grid(~ UnitCode, labeller = labeller(UnitCode = 
-    c("GBR" = "United Kingdom",
-      "NLD" = "The Netherlands",
-      "NOR" = "Norway",
-      "POL" = "Poland",
-      "PRT" = "Portugal"))) + 
-  #geom_hline(aes(yintercept = 25), colour = "red", linetype='dashed')+
-  #geom_hline(aes(yintercept = 50), colour = "orange", linetype='dashed')+
-  #geom_hline(aes(yintercept = 75), colour = "yellow", linetype='dashed')+
-  #geom_hline(aes(yintercept = 100), colour = "green", linetype='dashed')+
+    c("UK" = "United Kingdom",
+      "NL" = "The Netherlands",
+      "NO" = "Norway",
+      "PL" = "Poland",
+      "PT" = "Portugal"))) + 
   geom_bar(position = "dodge", stat="identity", colour = "black", width=0.45, aes(fill=fills)) +
   scale_fill_manual(values = rev(c("Red","Orange", "Yellow", "Green")), labels= rev(c("Poor", "Low", "Moderate", "High"))) +
   coord_flip() + 
-  scale_x_discrete(limits= a, label = function(x) substr(x,1,1)) + 
+  scale_x_discrete(label = function(x) substr(x,1,1)) + 
   xlab("Policy area") + 
   ylab("Score (range 0 - 100)") +
   labs(fill='Quality of policy design', group=c("1", "2"))
+
+ggsave("MOVING_PA.png", 
+       plot=last_plot(),
+       width = 6,
+       height = 4,
+       dpi = 300)
+
+
 ```
