@@ -24,6 +24,7 @@ colnames(index) <- c("PolicyArea", "Benchmark ID", "UnitCode", "Score")
 
 index
 
+#List of countries included in analysis
 COCREATE <- c("UK", "NL", "NO", "PL", "PT")
 
 index <- index %>% filter(UnitCode %in% COCREATE)
@@ -88,4 +89,40 @@ ggsave("NOURISHING_PA.png",
        dpi = 300)
 ```
 
+
+```{r}
+index$fills <- case_when(
+                       index$Score < 25 ~ "Red",
+                       index$Score < 50 ~ "Orange",
+                       index$Score < 75 ~ "Yellow",
+                       index$Score <= 100 ~ "Green")
+
+plots <- index %>% split(.$PolicyArea) %>%
+  map(~ggplot(., aes(y=Score, 
+                     x=`Benchmark ID`, 
+                     group=UnitCode, 
+                     order(rev(fills))))+
+        facet_grid(~ UnitCode, labeller = labeller(UnitCode = 
+    c("UK" = "United Kingdom",
+      "NL" = "The Netherlands",
+      "NO" = "Norway",
+      "PL" = "Poland",
+      "PT" = "Portugal"))) + 
+  geom_bar(position = "dodge", stat="identity", colour = "black", width=0.45, aes(fill=fills)) +
+    scale_fill_manual(values = rev(c("Red","Orange", "Yellow", "Green")), labels= rev(c("Poor", "Low", "Moderate", "High"))) +
+  coord_flip() + 
+  xlab("Benchmark") + 
+  ylab("Score (range 0 - 100)") +
+  labs(fill='Quality of policy design', group=c("1", "2")) +
+     theme(legend.position="bottom")
+      )
+
+paths <- stringr::str_c(names(plots), "_NOURISHING", ".png")
+res_dir <- "Figure/NOURISHING_"
+dir.create(res_dir, recursive = TRUE)
+
+pwalk(list(paths, c(plots)), ~ggsave(filename = .x, plot = .y, height = 5, width = 7, path = res_dir))
+
+
+```
 
